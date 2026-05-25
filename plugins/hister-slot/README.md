@@ -20,6 +20,14 @@ When you search, a **"In your index"** panel appears alongside regular results, 
 | **Show panel** | Enable or disable the "In your index" panel | ✅ enabled |
 | **Panel position** | `above-results` · `below-results` · `knowledge-panel` · `above-sidebar` | `above-results` |
 | **Results to show** | How many Hister results to display in the panel (1–20) | `5` |
+| **Hister First mode** | Skip other search engines entirely when your history has enough results | ❌ disabled |
+| **Minimum results to activate** | How many Hister results are needed to trigger Hister First (1–50) | `10` |
+
+## Hister First
+
+When **Hister First** is enabled, every search pre-fetches your Hister index. If the result count meets the threshold, other search engines are skipped — your search query never leaves your infrastructure.
+
+A banner at the top of the panel shows how many history results were found and provides a **Search all engines →** link to run a full search on demand.
 
 ## Authentication
 
