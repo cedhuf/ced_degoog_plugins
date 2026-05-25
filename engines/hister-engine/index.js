@@ -50,24 +50,24 @@ export default {
     cfg.apiKey = settings.apiKey || "";
   },
 
-  async executeSearch(query, page = 1, _timeFilter, context) {
+  async executeSearch(query, _page, _timeFilter, context) {
     if (!_isConfigured()) return { results: [] };
 
     const doFetch = context?.fetch ?? fetch;
     let data;
     try {
-      const res = await doFetch(`${cfg.url}/search`, {
-        method:  "POST",
-        headers: { ..._headers(), "Content-Type": "application/json" },
-        body:    JSON.stringify({ q: query, include_text: true }),
-      });
+      const q = encodeURIComponent(JSON.stringify({ text: query, include_text: true, limit: 20 }));
+      const res = await doFetch(
+        `${cfg.url}/search?query=${q}`,
+        { headers: _headers() },
+      );
       if (!res.ok) return { results: [] };
       data = JSON.parse(await res.text());
     } catch {
       return { results: [] };
     }
 
-    // Hister returns { Documents: [...] } — Go marshals struct fields as PascalCase
+    // Hister returns { documents: [...] } with Go PascalCase fallbacks
     const raw =
       data.Documents ?? data.documents ??
       data.results   ?? data.hits      ?? data.items ??
@@ -75,16 +75,13 @@ export default {
 
     if (!Array.isArray(raw)) return { results: [] };
 
-    // Hister returns all results at once — slice client-side for pagination
-    const limit  = 20;
-    const offset = (page - 1) * limit;
-    const results = raw.slice(offset, offset + limit).map((r) => ({
-      title:   r.Title   || r.title   || r.URL    || r.url    || "Untitled",
+    const results = raw.map((r) => ({
+      title:   r.Title   || r.title   || r.URL  || r.url  || "Untitled",
       url:     r.URL     || r.url     || "#",
-      snippet: r.Snippet || r.snippet || r.Excerpt || r.excerpt || r.text?.slice(0, 200) || r.Text?.slice(0, 200) || r.Content?.slice(0, 200) || r.content?.slice(0, 200) || "",
+      snippet: r.Snippet || r.snippet || r.text?.slice(0, 200) || r.Text?.slice(0, 200) || "",
       source:  "Hister",
     }));
 
-    return { results, totalPages: Math.ceil(raw.length / limit) };
+    return { results };
   },
 };

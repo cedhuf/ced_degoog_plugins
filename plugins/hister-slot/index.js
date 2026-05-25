@@ -34,8 +34,11 @@ function _headers() {
 
 async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
+  // The `query` param accepts a JSON-encoded Query struct — the only way to
+  // enable include_text (IncludeText is not parsed from plain URL params).
+  const q = encodeURIComponent(JSON.stringify({ text: query, include_text: true }));
   const res = await doFetch(
-    `${cfg.url}/search?q=${encodeURIComponent(query)}`,
+    `${cfg.url}/search?query=${q}`,
     { headers: _headers() },
   );
   if (!res.ok) {
