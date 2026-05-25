@@ -13,14 +13,13 @@ const cfg = {
   slotEnabled:  true,
   slotPosition: "above-results",
   slotLimit:    5,
+  slotStyle:    "card",
 };
 
 // Plugin ID injected by Degoog at runtime.
 // Store format: <author>-<repo>-<folder> → cedhuf-ced_degoog_plugins-hister-slot
 const _pluginId =
   typeof __PLUGIN_ID__ !== "undefined" ? __PLUGIN_ID__ : "cedhuf-ced_degoog_plugins-hister-slot"; // eslint-disable-line no-undef
-
-let _logoDataUrl = "";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,18 +74,13 @@ function _esc(s) {
 }
 
 function _renderResult(r) {
-  const title   = r.Title   || r.title   || r.URL     || r.url     || "Untitled";
+  const title   = r.Title   || r.title   || r.URL    || r.url    || "Untitled";
   const url     = r.URL     || r.url     || "#";
-  const content = r.Content || r.content || r.Body    || r.body    || "";
+  const content = r.Content || r.content || r.Body   || r.body   || "";
   const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 180);
-  const rawDate = r.Date    || r.date    || r.VisitedAt || r.visited_at || r.Timestamp || r.timestamp;
-  const dateHtml = rawDate
-    ? `<span class="hister-date">${new Date(rawDate).toLocaleDateString()}</span>`
-    : "";
   return `
     <div class="hister-result">
-      <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>${dateHtml}
-      <div class="hister-result-url">${_esc(url)}</div>
+      <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>
       ${snippet ? `<div class="hister-result-snippet">${_esc(snippet)}</div>` : ""}
     </div>`;
 }
@@ -140,6 +134,14 @@ export const slot = {
       description: "Where to display the Hister panel on the results page.",
     },
     {
+      key:         "slotStyle",
+      label:       "Display style",
+      type:        "select",
+      options:     ["card", "inline"],
+      default:     "card",
+      description: "card — compact bordered panel · inline — flush with results, left accent border",
+    },
+    {
       key:         "slotLimit",
       label:       "Results to show in panel",
       type:        "text",
@@ -154,24 +156,9 @@ export const slot = {
     cfg.apiKey       = settings.apiKey || "";
     cfg.slotEnabled  = settings.slotEnabled !== false;
     cfg.slotPosition = settings.slotPosition || "above-results";
+    cfg.slotStyle    = settings.slotStyle === "inline" ? "inline" : "card";
     cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
     slot.position    = cfg.slotPosition;
-  },
-
-  async init(ctx) {
-    try {
-      const { readFile } = await import("node:fs/promises");
-      const { join }     = await import("node:path");
-      const buf = await readFile(join(ctx.dir, "logo.png"));
-      _logoDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
-      return;
-    } catch { /* fall through */ }
-    try {
-      const raw = await ctx.readFile("logo.png");
-      _logoDataUrl = `data:image/png;base64,${Buffer.from(raw, "binary").toString("base64")}`;
-    } catch {
-      _logoDataUrl = "";
-    }
   },
 
   trigger(_query) {
@@ -184,40 +171,25 @@ export const slot = {
       results = await _search(query, context?.fetch);
     } catch (err) {
       return {
-        title: "Hister Slot",
-        html:  `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
+        html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
       };
     }
 
     const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    const viewAll  = `${cfg.url}/?q=${encodeURIComponent(query)}`;
-    const items    = displayed.map(_renderResult).join("");
-    const iconHtml = _logoDataUrl
-      ? `<img src="${_logoDataUrl}" alt="" width="14" height="14" style="vertical-align:middle;border-radius:2px">`
-      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              style="width:14px;height:14px;vertical-align:middle">
-           <circle cx="11" cy="11" r="8"/>
-           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-           <line x1="11" y1="8"  x2="11"    y2="14"/>
-           <line x1="8"  y1="11" x2="14"    y2="11"/>
-         </svg>`;
+    const viewAll = `${cfg.url}/?q=${encodeURIComponent(query)}`;
+    const items   = displayed.map(_renderResult).join("");
+    const header  = `
+      <div class="hister-slot-header">
+        <span class="hister-dot" aria-hidden="true">●</span>
+        <span class="hister-slot-label">Hister</span>
+        <a class="hister-slot-viewall" href="${viewAll}" target="_blank" rel="noopener">View all →</a>
+      </div>`;
 
+    const cls = `hister-slot hister-${cfg.slotStyle}`;
     return {
-      title: "In your index",
-      html: `
-        <div class="hister-slot">
-          <div class="hister-slot-header">
-            <span class="hister-slot-icon" aria-hidden="true">${iconHtml}</span>
-            <span class="hister-slot-label">In your index</span>
-            <a class="hister-slot-viewall" href="${viewAll}" target="_blank" rel="noopener">
-              View all →
-            </a>
-          </div>
-          <div class="hister-results">${items}</div>
-        </div>`,
+      html: `<div class="${cls}">${header}<div class="hister-results">${items}</div></div>`,
     };
   },
 };
