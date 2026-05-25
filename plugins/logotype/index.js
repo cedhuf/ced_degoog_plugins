@@ -323,6 +323,7 @@ export default {
         await Promise.allSettled([
           unlink(LOGO_PATH),
           unlink(WM_PATH),
+          unlink(DIMS_PATH),
         ]);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
