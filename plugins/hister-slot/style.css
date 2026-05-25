@@ -150,20 +150,6 @@
   -webkit-line-clamp: 1;
 }
 
-/* ── Count badge (pre-fetch mode) ────────────────────────────────────────── */
-/* Compact inline badge shown in the footer/header when Hister has many hits. */
-
-.hister-count-badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: var(--degoog-accent, rgba(74, 158, 255, 0.15));
-  color: var(--degoog-accent, #4a9eff);
-  opacity: 0.85;
-  white-space: nowrap;
-}
-
 /* ── Error ───────────────────────────────────────────────────────────────── */
 
 .hister-error {

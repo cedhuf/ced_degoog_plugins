@@ -7,8 +7,6 @@
 // Requires Degoog ≥ 0.17.0
 // isClientExposed: false → all requests go through the Degoog server
 
-import { basename } from "node:path";
-
 const cfg = {
   url:          "",
   apiKey:       "",
@@ -18,16 +16,6 @@ const cfg = {
   slotStyle:    "inline",
   slotDetail:   "title",
 };
-
-let _histerFirstEnabled   = false;
-let _histerFirstThreshold = 10;
-let _folderName           = "hister-slot";
-
-// Shared cache between interceptor and slot — avoids a second Hister round-trip
-// when the interceptor has already pre-fetched results for this query.
-// key: query string  →  value: { results: [], ts: number, meetsThreshold: boolean }
-const _prefetchCache = new Map();
-const PREFETCH_TTL   = 30_000; // 30 s
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,17 +32,11 @@ function _headers() {
   return h;
 }
 
-function _getCached(q) {
-  const e = _prefetchCache.get(q);
-  if (!e || Date.now() - e.ts > PREFETCH_TTL) { _prefetchCache.delete(q); return null; }
-  return e;
-}
-
-async function _search(query, contextFetch, limit) {
+async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
-  const qObj = { text: query, include_text: true };
-  if (limit) qObj.limit = limit;
-  const q = encodeURIComponent(JSON.stringify(qObj));
+  // The `query` param accepts a JSON-encoded Query struct — the only way to
+  // enable include_text (IncludeText is not parsed from plain URL params).
+  const q = encodeURIComponent(JSON.stringify({ text: query, include_text: true }));
   const res = await doFetch(
     `${cfg.url}/search?query=${q}`,
     { headers: _headers() },
@@ -74,6 +56,7 @@ async function _search(query, contextFetch, limit) {
   } catch {
     throw new Error("Hister returned an unexpected response. Make sure the URL points to your Hister instance.");
   }
+  // Hister returns { documents: [...] } with Go PascalCase fallbacks
   const raw =
     data.Documents ?? data.documents ??
     data.results   ?? data.hits      ?? data.items ??
@@ -81,6 +64,8 @@ async function _search(query, contextFetch, limit) {
   return _dedupe(Array.isArray(raw) ? raw : []);
 }
 
+// Deduplicate by base URL (strip query string) and by title.
+// Hister indexes multiple visits to the same page with slightly different URLs.
 function _dedupe(results) {
   const seenUrls   = new Set();
   const seenTitles = new Set();
@@ -107,6 +92,8 @@ function _esc(s) {
 function _renderResult(r) {
   const title   = r.Title   || r.title   || r.URL    || r.url    || "Untitled";
   const url     = r.URL     || r.url     || "#";
+  // text field: Hister may populate it with highlight fragments when the query
+  // term appears in the indexed content (depends on Bleve scoring).
   const content = r.Content || r.content || r.Body || r.body || r.text || r.Text || "";
   const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 200);
   return `
@@ -116,57 +103,6 @@ function _renderResult(r) {
       ${snippet ? `<div class="hister-result-snippet">${_esc(snippet)}</div>` : ""}
     </div>`;
 }
-
-// ── Interceptor ───────────────────────────────────────────────────────────────
-//
-// NOTE on "Hister First" and the Degoog interceptor API:
-// InterceptorResult = { query: string } — the interceptor can ONLY rewrite the
-// query text. There is no mechanism to stop other engines from running.
-// Returning a bang like "!hister <query>" from the interceptor sends that
-// literal string to ALL engines as their query, corrupting results.
-//
-// What this interceptor DOES do:
-//   - Pre-fetches Hister before the main search starts (parallel, not sequential)
-//   - Caches results so the slot renders immediately from cache (no second fetch)
-//   - When the threshold is met, the slot shows a count banner
-//
-// Truly blocking other engines would require a core Degoog change to expose
-// an engineTypes field in InterceptorResult.
-
-export const interceptor = {
-  isClientExposed: false,
-  name:            "Hister Pre-fetch",
-  description:     "Pre-fetches Hister results in parallel so the slot panel renders instantly from cache.",
-
-  init(ctx) {
-    _folderName = basename(ctx.dir);
-  },
-
-  async intercept(query, context) {
-    const q = query.trim();
-
-    // Skip: empty, bang command (already routed), not configured, or feature off
-    if (!q || /^!/.test(q) || !_isConfigured() || !_histerFirstEnabled) return { query };
-
-    // Already cached and fresh — nothing to do
-    if (_getCached(q)) return { query };
-
-    // Pre-fetch in background: fetch enough to evaluate the threshold
-    let results;
-    try {
-      results = await _search(q, context?.fetch, _histerFirstThreshold + 5);
-    } catch {
-      return { query }; // Hister unreachable → fall through unchanged
-    }
-
-    const meetsThreshold = results.length >= _histerFirstThreshold;
-    _prefetchCache.set(q, { results, ts: Date.now(), meetsThreshold });
-
-    // Always return the original query — we cannot route to a specific engine
-    // from an interceptor with the current Degoog API.
-    return { query };
-  },
-};
 
 // ── Slot ──────────────────────────────────────────────────────────────────────
 
@@ -234,22 +170,6 @@ export const slot = {
       placeholder: "5",
       description: "Maximum number of Hister results displayed in the panel (1–20).",
     },
-    // ── Hister Pre-fetch ──────────────────────────────────────────────────────
-    {
-      key:         "histerFirst",
-      label:       "Pre-fetch mode",
-      type:        "toggle",
-      default:     false,
-      description: "Pre-fetch Hister results in parallel with other engines so the panel appears instantly. When results meet the threshold a count badge is shown.",
-    },
-    {
-      key:         "histerFirstThreshold",
-      label:       "Badge threshold",
-      type:        "text",
-      default:     "10",
-      placeholder: "10",
-      description: "Show the result count badge only when Hister returns at least this many results (1–50).",
-    },
   ],
 
   configure(settings) {
@@ -261,13 +181,6 @@ export const slot = {
     cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail) ? settings.slotDetail : "title";
     cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
     slot.position    = cfg.slotPosition;
-
-    _histerFirstEnabled   = settings.histerFirst === true;
-    _histerFirstThreshold = Math.max(1, Math.min(50, parseInt(settings.histerFirstThreshold || "10", 10)));
-  },
-
-  init(ctx) {
-    _folderName = basename(ctx.dir);
   },
 
   trigger(_query) {
@@ -275,50 +188,34 @@ export const slot = {
   },
 
   async execute(query, context) {
-    // Use pre-fetched cache if available — avoids a second Hister round-trip
-    const cached = _getCached(query);
     let results;
-    if (cached) {
-      results = cached.results;
-    } else {
-      try {
-        results = await _search(query, context?.fetch);
-      } catch (err) {
-        return {
-          html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
-        };
-      }
+    try {
+      results = await _search(query, context?.fetch);
+    } catch (err) {
+      return {
+        html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
+      };
     }
 
     const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    const total    = results.length;
-    const viewAll  = `${cfg.url}/?q=${encodeURIComponent(query)}`;
-    const items    = displayed.map(_renderResult).join("");
-    const detail   = `hister-detail-${cfg.slotDetail}`;
-
-    // Show a count badge when pre-fetch mode is on and the threshold is met
-    const showBadge = _histerFirstEnabled && (cached?.meetsThreshold ?? false);
-    const badge = showBadge
-      ? `<span class="hister-count-badge">${total} in your index</span>`
-      : "";
-
-    const footer = `
+    const viewAll = `${cfg.url}/?q=${encodeURIComponent(query)}`;
+    const items   = displayed.map(_renderResult).join("");
+    const footer  = `
       <div class="hister-footer">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-footer-label">Hister</span>
-        ${badge}
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
-
-    const header = `
+    const header  = `
       <div class="hister-slot-header">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-slot-label">Hister</span>
-        ${badge}
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
+
+    const detail = `hister-detail-${cfg.slotDetail}`;
 
     if (cfg.slotStyle === "inline") {
       return {
@@ -340,4 +237,4 @@ export const slot = {
   },
 };
 
-export default { slot, interceptor };
+export default { slot };
