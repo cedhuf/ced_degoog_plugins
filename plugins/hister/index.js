@@ -199,8 +199,6 @@ export const interceptor = {
   name:        "Hister — Pré-chargement",
   description: "Pré-charge les résultats Hister avant le slot pour éviter une double requête HTTP.",
   isClientExposed: false,
-  settingsId:  "hister",
-  settingsSchema,
   configure,
 
   async intercept(query, context) {
