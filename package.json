@@ -8,7 +8,7 @@
       "path": "plugins/hister-slot",
       "name": "Hister Slot",
       "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "type": "slot",
       "screenshots": ["screenshot.png"]
     }

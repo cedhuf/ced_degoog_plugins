@@ -94,8 +94,8 @@ function _esc(s) {
 function _renderResult(r) {
   const title   = r.Title   || r.title   || r.URL    || r.url    || "Untitled";
   const url     = r.URL     || r.url     || "#";
-  const content = r.Content || r.content || r.Body   || r.body   || "";
-  const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 180);
+  const content = r.Content || r.content || r.Body || r.body || r.text || r.Text || "";
+  const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 200);
   return `
     <div class="hister-result">
       <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>

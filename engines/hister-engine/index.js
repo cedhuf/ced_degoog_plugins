@@ -80,7 +80,7 @@ export default {
     const results = raw.slice(offset, offset + limit).map((r) => ({
       title:   r.Title   || r.title   || r.URL    || r.url    || "Untitled",
       url:     r.URL     || r.url     || "#",
-      snippet: r.Snippet || r.snippet || r.Content?.slice(0, 200) || r.content?.slice(0, 200) || "",
+      snippet: r.Snippet || r.snippet || r.Excerpt || r.excerpt || r.text?.slice(0, 200) || r.Text?.slice(0, 200) || r.Content?.slice(0, 200) || r.content?.slice(0, 200) || "",
       source:  "Hister",
     }));
 
