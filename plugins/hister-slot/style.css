@@ -4,32 +4,17 @@
    All selectors are prefixed .hister-* to avoid collisions.
 ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Shared ──────────────────────────────────────────────────────────────── */
+/* ── Shared base ─────────────────────────────────────────────────────────── */
 
 .hister-slot {
   margin-bottom: 1rem;
-  font-size: 0.9rem;
 }
 
-.hister-slot-header {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--degoog-text-secondary, var(--degoog-text-muted, #888));
-}
-
-/* Colored dot — source identity without a logo */
+/* Colored dot — minimal source identity */
 .hister-dot {
   color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
-  font-size: 0.6em;
+  font-size: 0.55em;
   line-height: 1;
-}
-
-.hister-slot-label {
-  flex: 1;
 }
 
 .hister-slot-viewall {
@@ -45,17 +30,17 @@
   text-decoration: underline;
 }
 
-/* ── Results ─────────────────────────────────────────────────────────────── */
+/* ── Results (shared) ────────────────────────────────────────────────────── */
 
 .hister-results {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.75rem;
 }
 
 .hister-result-title {
   display: block;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 400;
   color: var(--degoog-link, var(--degoog-accent, #4a9eff));
   text-decoration: none;
@@ -69,14 +54,49 @@
   text-decoration: underline;
 }
 
-.hister-result-snippet {
+.hister-result-url {
   font-size: 0.78rem;
-  color: var(--degoog-text-secondary, var(--degoog-text-muted, #888));
+  color: var(--degoog-url, var(--degoog-text-muted, #4d8c57));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.hister-result-snippet {
+  font-size: 0.875rem;
+  color: var(--degoog-text, var(--degoog-text-primary, inherit));
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  line-height: 1.4;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* ── Inline variant ──────────────────────────────────────────────────────── */
+/* Results match native Degoog results exactly. Ghost outline provides the   */
+/* only distinction — thin, no fill, barely perceptible.                     */
+
+.hister-inline {
+  border: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.18));
+  border-radius: var(--degoog-radius, 8px);
+  padding: 0.75rem 1rem;
+}
+
+.hister-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.12));
+  font-size: 0.72rem;
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #aaa));
+}
+
+.hister-footer-label {
+  flex: 1;
 }
 
 /* ── Card variant ────────────────────────────────────────────────────────── */
@@ -85,13 +105,39 @@
   border: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.2));
   border-radius: var(--degoog-radius, 8px);
   padding: 0.6rem 0.875rem;
+  background: var(--degoog-surface, transparent);
 }
 
-/* ── Inline variant ──────────────────────────────────────────────────────── */
+.hister-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #888));
+}
 
-.hister-inline {
-  border-left: 2px solid var(--degoog-accent, var(--degoog-primary, #4a9eff));
-  padding-left: 0.75rem;
+.hister-slot-label {
+  flex: 1;
+}
+
+/* In card mode, results are more compact */
+.hister-card .hister-results {
+  gap: 0.45rem;
+}
+
+.hister-card .hister-result-title {
+  font-size: 0.875rem;
+}
+
+.hister-card .hister-result-url {
+  display: none;
+}
+
+.hister-card .hister-result-snippet {
+  font-size: 0.78rem;
+  -webkit-line-clamp: 1;
 }
 
 /* ── Error ───────────────────────────────────────────────────────────────── */
@@ -105,7 +151,8 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
+  .hister-inline,
   .hister-card {
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 0.75rem;
   }
 }

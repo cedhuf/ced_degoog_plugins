@@ -13,7 +13,7 @@ const cfg = {
   slotEnabled:  true,
   slotPosition: "above-results",
   slotLimit:    5,
-  slotStyle:    "card",
+  slotStyle:    "inline",
 };
 
 // Plugin ID injected by Degoog at runtime.
@@ -81,6 +81,7 @@ function _renderResult(r) {
   return `
     <div class="hister-result">
       <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>
+      <div class="hister-result-url">${_esc(url)}</div>
       ${snippet ? `<div class="hister-result-snippet">${_esc(snippet)}</div>` : ""}
     </div>`;
 }
@@ -137,9 +138,9 @@ export const slot = {
       key:         "slotStyle",
       label:       "Display style",
       type:        "select",
-      options:     ["card", "inline"],
-      default:     "card",
-      description: "card — compact bordered panel · inline — flush with results, left accent border",
+      options:     ["inline", "card"],
+      default:     "inline",
+      description: "inline — blends with native results, subtle framing · card — compact bordered panel",
     },
     {
       key:         "slotLimit",
@@ -156,7 +157,7 @@ export const slot = {
     cfg.apiKey       = settings.apiKey || "";
     cfg.slotEnabled  = settings.slotEnabled !== false;
     cfg.slotPosition = settings.slotPosition || "above-results";
-    cfg.slotStyle    = settings.slotStyle === "inline" ? "inline" : "card";
+    cfg.slotStyle    = settings.slotStyle === "card" ? "card" : "inline";
     cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
     slot.position    = cfg.slotPosition;
   },
@@ -180,6 +181,12 @@ export const slot = {
 
     const viewAll = `${cfg.url}/?q=${encodeURIComponent(query)}`;
     const items   = displayed.map(_renderResult).join("");
+    const footer  = `
+      <div class="hister-footer">
+        <span class="hister-dot" aria-hidden="true">●</span>
+        <span class="hister-footer-label">Hister</span>
+        <a class="hister-slot-viewall" href="${viewAll}" target="_blank" rel="noopener">View all →</a>
+      </div>`;
     const header  = `
       <div class="hister-slot-header">
         <span class="hister-dot" aria-hidden="true">●</span>
@@ -187,9 +194,22 @@ export const slot = {
         <a class="hister-slot-viewall" href="${viewAll}" target="_blank" rel="noopener">View all →</a>
       </div>`;
 
-    const cls = `hister-slot hister-${cfg.slotStyle}`;
+    if (cfg.slotStyle === "inline") {
+      return {
+        html: `
+          <div class="hister-slot hister-inline">
+            <div class="hister-results">${items}</div>
+            ${footer}
+          </div>`,
+      };
+    }
+
     return {
-      html: `<div class="${cls}">${header}<div class="hister-results">${items}</div></div>`,
+      html: `
+        <div class="hister-slot hister-card">
+          ${header}
+          <div class="hister-results">${items}</div>
+        </div>`,
     };
   },
 };
