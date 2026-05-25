@@ -1,66 +1,81 @@
 # ced_degoog_plugins
 
-Extensions [Degoog](https://github.com/degoog-org/degoog) par [@cedhuf](https://github.com/cedhuf).
+> **Note:** This plugin was developed with the assistance of [Claude](https://claude.ai) (Anthropic AI). Architecture, Degoog API compliance, and implementation were iterated collaboratively with AI.
 
-> Intégrations self-hosted pensées pour un homelab — privacy-first, zero cloud, tout sous contrôle.
+[Degoog](https://github.com/degoog-org/degoog) extensions by [@cedhuf](https://github.com/cedhuf) — self-hosted integrations built for homelab stacks. Privacy-first, zero cloud, everything under your control.
 
-## Ajouter ce repo dans Degoog
+## Add this repository to Degoog
 
-**Settings → Store → Add** puis coller :
+**Settings → Store → Add**, then paste:
 
 ```
 https://github.com/cedhuf/ced_degoog_plugins.git
 ```
 
-Ensuite **Browse** → choisir l'extension → **Install** → **Configure**.
+Then **Browse** → pick an extension → **Install** → **Configure**.
 
 ---
 
-## Extensions disponibles
+## Available extensions
 
-### 🔍 Hister
+### 🔍 Hister — Plugin
 
-Intègre [Hister](https://github.com/asciimoo/hister) — votre moteur de recherche full-text personnel — directement dans Degoog.
+Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-text web history search engine — directly into Degoog.
 
-| Capacité | Description |
+| Feature | Description |
 |---|---|
-| **Slot** | Panel « Dans votre index » au-dessus des résultats (position configurable) |
-| **Intercepteur** | Si Hister a ≥ N résultats, les moteurs externes sont supprimés |
-| **Moteur natif** | Hister apparaît comme moteur Degoog (résultats mélangés ou onglet dédié) |
+| **Slot** | "In your index" panel shown alongside regular results (position configurable) |
+| **Pre-fetch interceptor** | Optionally pre-loads Hister results before the panel renders, saving one HTTP round-trip |
 
-**Prérequis :** Degoog ≥ 0.17.0 · Hister (toute version récente)
+**Requirements:** Degoog ≥ 0.17.0 · Hister (any recent version)
 
-**Configuration :**
+**Settings:**
 
-| Paramètre | Description | Défaut |
+| Setting | Description | Default |
 |---|---|---|
-| URL Hister | `http://hister:8080` | *(requis)* |
-| Clé API | API key si l'instance est protégée | *(optionnel)* |
-| Slot activé | Afficher le panel dans les résultats | ✅ |
-| Position du slot | above-results / below-results / knowledge-panel / above-sidebar | `above-results` |
-| Intercepteur activé | Supprimer moteurs externes si Hister a assez de résultats | ❌ |
-| Seuil intercepteur | Nombre minimum de résultats pour déclencher l'intercepteur | `5` |
-| Moteur activé | Enregistrer Hister comme moteur Degoog | ❌ |
+| Hister Instance URL | `http://hister:8080` | *(required)* |
+| API Key | API key if the instance is protected | *(optional)* |
+| Show panel | Display the "In your index" panel in results | ✅ |
+| Panel position | `above-results` / `below-results` / `knowledge-panel` / `above-sidebar` | `above-results` |
+| Enable pre-fetching | Pre-load results before panel renders | ❌ |
+| Pre-fetch result count | How many results to pre-load | `5` |
+
+**Testing the connection:**
+
+Once the URL is saved, open this in your browser (replace `<plugin-id>` with the value shown in the URL field description):
+
+```
+http://your-degoog/api/plugin/<plugin-id>/test
+```
+
+The endpoint returns the raw Hister API response, status code, and a hint — useful for diagnosing endpoint or format mismatches.
 
 ---
 
-## Structure du repo
+### 🔍 Hister — Engine
+
+Registers Hister as a native Degoog search engine. Results appear in a dedicated tab and via the `!hister` bang shortcut.
+
+Install separately from **Settings → Store → Hister Engine**.
+
+---
+
+## Repository structure
 
 ```
 ced_degoog_plugins/
-├── package.json          ← déclaration Store Degoog
+├── package.json          ← Degoog Store manifest
 ├── README.md
-├── logo.png
-├── screenshots/          ← captures pour le Store
-└── plugins/
+├── plugins/
+│   └── hister/
+│       ├── index.js      ← slot + interceptor + /test route
+│       ├── style.css     ← scoped styles (uses Degoog CSS variables)
+│       └── author.json
+└── engines/
     └── hister/
-        ├── index.js      ← slot + interceptor + engine
-        ├── style.css     ← styles scopés (variables CSS Degoog)
-        └── author.json
+        └── index.js      ← standalone search engine + !hister bang
 ```
 
-*Les dossiers `themes/`, `engines/`, `transports/` sont prêts pour de futures extensions.*
-
-## Licence
+## License
 
 MIT
