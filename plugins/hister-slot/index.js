@@ -63,7 +63,24 @@ async function _search(query, contextFetch) {
     data.Documents ?? data.documents ??
     data.results   ?? data.hits      ?? data.items ??
     (Array.isArray(data) ? data : []);
-  return Array.isArray(raw) ? raw : [];
+  return _dedupe(Array.isArray(raw) ? raw : []);
+}
+
+// Deduplicate by base URL (strip query string) and by title.
+// Hister indexes multiple visits to the same page with slightly different URLs.
+function _dedupe(results) {
+  const seenUrls   = new Set();
+  const seenTitles = new Set();
+  return results.filter((r) => {
+    const rawUrl = r.URL || r.url || "";
+    const base   = rawUrl.split("?")[0].toLowerCase();
+    const title  = (r.Title || r.title || "").toLowerCase().trim();
+    if ((base  && seenUrls.has(base))  ||
+        (title && seenTitles.has(title))) return false;
+    if (base)  seenUrls.add(base);
+    if (title) seenTitles.add(title);
+    return true;
+  });
 }
 
 function _esc(s) {
