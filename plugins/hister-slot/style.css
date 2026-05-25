@@ -99,6 +99,30 @@
   flex: 1;
 }
 
+/* ── Detail levels ───────────────────────────────────────────────────────── */
+/* Visibility controlled by class on the container — works for both styles.  */
+
+/* title: link only */
+.hister-detail-title .hister-result-url,
+.hister-detail-title .hister-result-snippet {
+  display: none;
+}
+
+.hister-detail-title .hister-results {
+  gap: 0.35rem;
+}
+
+/* snippet: title + excerpt, no URL */
+.hister-detail-snippet .hister-result-url {
+  display: none;
+}
+
+.hister-detail-snippet .hister-results {
+  gap: 0.55rem;
+}
+
+/* full: title + URL + excerpt — default gaps apply */
+
 /* ── Card variant ────────────────────────────────────────────────────────── */
 
 .hister-card {
@@ -122,17 +146,9 @@
   flex: 1;
 }
 
-/* In card mode, results are more compact */
-.hister-card .hister-results {
-  gap: 0.45rem;
-}
-
+/* In card mode, results are slightly more compact */
 .hister-card .hister-result-title {
   font-size: 0.875rem;
-}
-
-.hister-card .hister-result-url {
-  display: none;
 }
 
 .hister-card .hister-result-snippet {

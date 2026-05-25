@@ -14,6 +14,7 @@ const cfg = {
   slotPosition: "above-results",
   slotLimit:    5,
   slotStyle:    "inline",
+  slotDetail:   "title",
 };
 
 // Plugin ID injected by Degoog at runtime.
@@ -143,6 +144,14 @@ export const slot = {
       description: "inline — blends with native results, subtle framing · card — compact bordered panel",
     },
     {
+      key:         "slotDetail",
+      label:       "Detail level",
+      type:        "select",
+      options:     ["title", "snippet", "full"],
+      default:     "title",
+      description: "title — link only · snippet — title + excerpt · full — title + URL + excerpt",
+    },
+    {
       key:         "slotLimit",
       label:       "Results to show in panel",
       type:        "text",
@@ -158,6 +167,7 @@ export const slot = {
     cfg.slotEnabled  = settings.slotEnabled !== false;
     cfg.slotPosition = settings.slotPosition || "above-results";
     cfg.slotStyle    = settings.slotStyle === "card" ? "card" : "inline";
+    cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail) ? settings.slotDetail : "title";
     cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
     slot.position    = cfg.slotPosition;
   },
@@ -194,10 +204,12 @@ export const slot = {
         <a class="hister-slot-viewall" href="${viewAll}" target="_blank" rel="noopener">View all →</a>
       </div>`;
 
+    const detail = `hister-detail-${cfg.slotDetail}`;
+
     if (cfg.slotStyle === "inline") {
       return {
         html: `
-          <div class="hister-slot hister-inline">
+          <div class="hister-slot hister-inline ${detail}">
             <div class="hister-results">${items}</div>
             ${footer}
           </div>`,
@@ -206,7 +218,7 @@ export const slot = {
 
     return {
       html: `
-        <div class="hister-slot hister-card">
+        <div class="hister-slot hister-card ${detail}">
           ${header}
           <div class="hister-results">${items}</div>
         </div>`,
