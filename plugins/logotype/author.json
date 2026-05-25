@@ -1,0 +1,10 @@
+{
+  "name": "cedhuf",
+  "url": "https://github.com/cedhuf",
+  "fork_of": {
+    "author": "litruv",
+    "url": "https://github.com/litruv",
+    "plugin": "custom-logo",
+    "note": "Originally based on litruv's custom-logo plugin — forked and extended by cedhuf."
+  }
+}

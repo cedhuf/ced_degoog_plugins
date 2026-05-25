@@ -11,6 +11,13 @@
       "version": "2.0.0",
       "type": "slot",
       "screenshots": ["screenshot.png"]
+    },
+    {
+      "path": "plugins/logotype",
+      "name": "Logotype",
+      "description": "Replace the Degoog logo with your own image. Upload via the `!logo` command, control dimensions, and optionally add an intro animation.",
+      "version": "1.0.0",
+      "screenshots": ["screenshots/1.png"]
     }
   ],
   "engines": [
