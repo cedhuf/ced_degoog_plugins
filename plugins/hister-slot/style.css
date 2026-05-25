@@ -150,34 +150,19 @@
   -webkit-line-clamp: 1;
 }
 
-/* ── Hister First banner ─────────────────────────────────────────────────── */
-/* Shown at the top of the slot when Hister First mode skipped other engines. */
+/* ── Count badge (pre-fetch mode) ────────────────────────────────────────── */
+/* Compact inline badge shown in the footer/header when Hister has many hits. */
 
-.hister-first-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 8px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.15));
-  flex-wrap: wrap;
-}
-
-.hister-first-info {
-  font-size: 0.73rem;
-  opacity: 0.55;
-}
-
-.hister-first-all {
-  font-size: 0.73rem;
-  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
-  text-decoration: none;
-  opacity: 0.75;
+.hister-count-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--degoog-accent, rgba(74, 158, 255, 0.15));
+  color: var(--degoog-accent, #4a9eff);
+  opacity: 0.85;
   white-space: nowrap;
-  transition: opacity 0.15s;
 }
-.hister-first-all:hover { opacity: 1; text-decoration: underline; }
 
 /* ── Error ───────────────────────────────────────────────────────────────── */
 

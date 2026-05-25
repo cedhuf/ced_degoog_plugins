@@ -1,9 +1,7 @@
 // Hister Slot plugin for Degoog
 // Shows pages from your personal Hister history index alongside search results.
-// Optionally activates "Hister First" mode: when enough history results are found,
-// other search engines are skipped entirely.
 //
-// Hister search API: GET /search?q=<query>
+// Hister search API: GET /search?query=<JSON>
 // Hister SPA URL:    /?q=<query>  (used for "View all" links)
 //
 // Requires Degoog ≥ 0.17.0
@@ -25,11 +23,11 @@ let _histerFirstEnabled   = false;
 let _histerFirstThreshold = 10;
 let _folderName           = "hister-slot";
 
-// Shared cache between interceptor and slot — avoids a double Hister fetch per query.
-// key: query string  →  value: { results: [], ts: number, activated: boolean }
+// Shared cache between interceptor and slot — avoids a second Hister round-trip
+// when the interceptor has already pre-fetched results for this query.
+// key: query string  →  value: { results: [], ts: number, meetsThreshold: boolean }
 const _prefetchCache = new Map();
-const _skipOnce      = new Set(); // queries the user asked to search normally (skip Hister First once)
-const PREFETCH_TTL   = 30_000;   // 30 s
+const PREFETCH_TTL   = 30_000; // 30 s
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,19 +50,8 @@ function _getCached(q) {
   return e;
 }
 
-/**
- * Strip the `!hister` prefix the interceptor may have injected into the query.
- * The slot's execute() may receive "!hister dogs" if the bang wasn't processed
- * by the routing layer — we always want to work with the clean query.
- */
-function _cleanQuery(q) {
-  return q.replace(/^!hister\s+/i, "").trim() || q;
-}
-
 async function _search(query, contextFetch, limit) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
-  // The `query` param accepts a JSON-encoded Query struct — the only way to
-  // enable include_text (IncludeText is not parsed from plain URL params).
   const qObj = { text: query, include_text: true };
   if (limit) qObj.limit = limit;
   const q = encodeURIComponent(JSON.stringify(qObj));
@@ -87,7 +74,6 @@ async function _search(query, contextFetch, limit) {
   } catch {
     throw new Error("Hister returned an unexpected response. Make sure the URL points to your Hister instance.");
   }
-  // Hister returns { documents: [...] } with Go PascalCase fallbacks
   const raw =
     data.Documents ?? data.documents ??
     data.results   ?? data.hits      ?? data.items ??
@@ -95,8 +81,6 @@ async function _search(query, contextFetch, limit) {
   return _dedupe(Array.isArray(raw) ? raw : []);
 }
 
-// Deduplicate by base URL (strip query string) and by title.
-// Hister indexes multiple visits to the same page with slightly different URLs.
 function _dedupe(results) {
   const seenUrls   = new Set();
   const seenTitles = new Set();
@@ -134,11 +118,25 @@ function _renderResult(r) {
 }
 
 // ── Interceptor ───────────────────────────────────────────────────────────────
+//
+// NOTE on "Hister First" and the Degoog interceptor API:
+// InterceptorResult = { query: string } — the interceptor can ONLY rewrite the
+// query text. There is no mechanism to stop other engines from running.
+// Returning a bang like "!hister <query>" from the interceptor sends that
+// literal string to ALL engines as their query, corrupting results.
+//
+// What this interceptor DOES do:
+//   - Pre-fetches Hister before the main search starts (parallel, not sequential)
+//   - Caches results so the slot renders immediately from cache (no second fetch)
+//   - When the threshold is met, the slot shows a count banner
+//
+// Truly blocking other engines would require a core Degoog change to expose
+// an engineTypes field in InterceptorResult.
 
 export const interceptor = {
   isClientExposed: false,
-  name:            "Hister First",
-  description:     "Pre-fetches Hister and skips other search engines when your history has enough matches.",
+  name:            "Hister Pre-fetch",
+  description:     "Pre-fetches Hister results in parallel so the slot panel renders instantly from cache.",
 
   init(ctx) {
     _folderName = basename(ctx.dir);
@@ -147,38 +145,25 @@ export const interceptor = {
   async intercept(query, context) {
     const q = query.trim();
 
-    // Skip: empty query, bang command (already routed), not configured, feature off
+    // Skip: empty, bang command (already routed), not configured, or feature off
     if (!q || /^!/.test(q) || !_isConfigured() || !_histerFirstEnabled) return { query };
 
-    // User clicked "Search all engines →" — skip Hister First once for this query
-    if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
+    // Already cached and fresh — nothing to do
+    if (_getCached(q)) return { query };
 
-    // Serve from shared cache if still fresh (e.g. quick back-navigation)
-    const cached = _getCached(q);
-    if (cached) {
-      return cached.activated ? { query: `!hister ${q}` } : { query };
-    }
-
-    // Fetch enough results to evaluate the threshold
+    // Pre-fetch in background: fetch enough to evaluate the threshold
     let results;
     try {
       results = await _search(q, context?.fetch, _histerFirstThreshold + 5);
     } catch {
-      return { query }; // Hister unreachable → fall through to normal search
+      return { query }; // Hister unreachable → fall through unchanged
     }
 
-    const activated = results.length >= _histerFirstThreshold;
-    _prefetchCache.set(q, { results, ts: Date.now(), activated });
+    const meetsThreshold = results.length >= _histerFirstThreshold;
+    _prefetchCache.set(q, { results, ts: Date.now(), meetsThreshold });
 
-    if (activated) {
-      // Route to the Hister engine only via the !hister bang shortcut.
-      // Degoog processes bangs after interceptors, so this transparently
-      // redirects the search without the user ever typing "!hister".
-      // If the bang is not acted on, the slot will still display the
-      // cached results prominently with a "Hister First" banner.
-      return { query: `!hister ${q}` };
-    }
-
+    // Always return the original query — we cannot route to a specific engine
+    // from an interceptor with the current Degoog API.
     return { query };
   },
 };
@@ -249,21 +234,21 @@ export const slot = {
       placeholder: "5",
       description: "Maximum number of Hister results displayed in the panel (1–20).",
     },
-    // ── Hister First ──────────────────────────────────────────────────────────
+    // ── Hister Pre-fetch ──────────────────────────────────────────────────────
     {
       key:         "histerFirst",
-      label:       "Hister First mode",
+      label:       "Pre-fetch mode",
       type:        "toggle",
       default:     false,
-      description: "When your history has enough results, skip other search engines entirely and show only Hister results.",
+      description: "Pre-fetch Hister results in parallel with other engines so the panel appears instantly. When results meet the threshold a count badge is shown.",
     },
     {
       key:         "histerFirstThreshold",
-      label:       "Minimum results to activate",
+      label:       "Badge threshold",
       type:        "text",
       default:     "10",
       placeholder: "10",
-      description: "Minimum number of Hister results needed to skip other engines (1–50).",
+      description: "Show the result count badge only when Hister returns at least this many results (1–50).",
     },
   ],
 
@@ -290,17 +275,14 @@ export const slot = {
   },
 
   async execute(query, context) {
-    // Strip the !hister prefix the interceptor may have injected
-    const q = _cleanQuery(query);
-
     // Use pre-fetched cache if available — avoids a second Hister round-trip
-    const cached = _getCached(q);
+    const cached = _getCached(query);
     let results;
     if (cached) {
       results = cached.results;
     } else {
       try {
-        results = await _search(q, context?.fetch);
+        results = await _search(query, context?.fetch);
       } catch (err) {
         return {
           html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
@@ -308,26 +290,25 @@ export const slot = {
       }
     }
 
-    const displayed    = results.slice(0, cfg.slotLimit);
+    const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    const histerFirst  = cached?.activated ?? false;
-    const viewAll      = `${cfg.url}/?q=${encodeURIComponent(q)}`;
-    const skipUrl      = `/api/plugin/${_folderName}/skip?q=${encodeURIComponent(q)}`;
-    const items        = displayed.map(_renderResult).join("");
-    const detail       = `hister-detail-${cfg.slotDetail}`;
-    const total        = results.length;
+    const total    = results.length;
+    const viewAll  = `${cfg.url}/?q=${encodeURIComponent(query)}`;
+    const items    = displayed.map(_renderResult).join("");
+    const detail   = `hister-detail-${cfg.slotDetail}`;
 
-    const banner = histerFirst ? `
-      <div class="hister-first-banner">
-        <span class="hister-first-info">${total} result${total !== 1 ? "s" : ""} from your history — other engines skipped</span>
-        <a class="hister-first-all" href="${_esc(skipUrl)}">Search all engines →</a>
-      </div>` : "";
+    // Show a count badge when pre-fetch mode is on and the threshold is met
+    const showBadge = _histerFirstEnabled && (cached?.meetsThreshold ?? false);
+    const badge = showBadge
+      ? `<span class="hister-count-badge">${total} in your index</span>`
+      : "";
 
     const footer = `
       <div class="hister-footer">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-footer-label">Hister</span>
+        ${badge}
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
 
@@ -335,6 +316,7 @@ export const slot = {
       <div class="hister-slot-header">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-slot-label">Hister</span>
+        ${badge}
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
 
@@ -342,7 +324,6 @@ export const slot = {
       return {
         html: `
           <div class="hister-slot hister-inline ${detail}">
-            ${banner}
             <div class="hister-results">${items}</div>
             ${footer}
           </div>`,
@@ -353,40 +334,10 @@ export const slot = {
       html: `
         <div class="hister-slot hister-card ${detail}">
           ${header}
-          ${banner}
           <div class="hister-results">${items}</div>
         </div>`,
     };
   },
 };
-
-// ── Routes ────────────────────────────────────────────────────────────────────
-
-export const routes = [
-  {
-    // GET /api/plugin/hister-slot/skip?q=<query>
-    // Called by the "Search all engines →" link in the Hister First banner.
-    // Marks the query as skip-once so the interceptor won't activate on the
-    // next search, then redirects to a normal Degoog search.
-    method: "get",
-    path:   "/skip",
-    handler(req) {
-      try {
-        const url = new URL(req.url);
-        const q   = url.searchParams.get("q") || "";
-        if (q) {
-          _skipOnce.add(q);
-          setTimeout(() => _skipOnce.delete(q), 60_000); // auto-expire after 60 s
-        }
-        return new Response(null, {
-          status:  302,
-          headers: { Location: `/search?q=${encodeURIComponent(q)}` },
-        });
-      } catch {
-        return new Response(null, { status: 302, headers: { Location: "/" } });
-      }
-    },
-  },
-];
 
 export default { slot, interceptor };

@@ -1,31 +1,31 @@
 // Hister Engine for Degoog
 // Registers Hister as a native Degoog search engine.
-// Results appear in a dedicated tab and via the !hister bang shortcut.
+// Results appear in a dedicated "Hister" tab and via the !hister bang shortcut.
 
-const cfg = {
-  url:    "",
-  apiKey: "",
-};
+// Distinct engine type → dedicated tab in the results page.
+// The !hister bang shortcut routes directly to this tab.
+export const type = "hister";
 
-function _isConfigured() {
-  return Boolean(cfg.url);
-}
+let _url    = "";
+let _apiKey = "";
+
+function _isConfigured() { return Boolean(_url); }
 
 function _headers() {
-  const h = { Accept: "application/json", Origin: cfg.url };
-  if (cfg.apiKey) {
-    h["Authorization"]  = `Bearer ${cfg.apiKey}`;
-    h["X-Access-Token"] = cfg.apiKey;
+  const h = { Accept: "application/json", Origin: _url };
+  if (_apiKey) {
+    h["Authorization"]  = `Bearer ${_apiKey}`;
+    h["X-Access-Token"] = _apiKey;
   }
   return h;
 }
 
-export default {
-  name:         "Hister Engine",
-  type:         "web",
-  bangShortcut: "hister",
+export default class HisterEngine {
+  isClientExposed = false;
+  name            = "Hister Engine";
+  bangShortcut    = "hister";
 
-  settingsSchema: [
+  settingsSchema = [
     {
       key:         "url",
       label:       "Hister Instance URL",
@@ -43,45 +43,46 @@ export default {
       description: "Your Hister Access Token (Hister → Profile → Access Token). Required if your instance uses authentication.",
       secret:      true,
     },
-  ],
+  ];
 
   configure(settings) {
-    cfg.url    = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey = settings.apiKey || "";
-  },
+    _url    = (settings.url || "").replace(/\/$/, "");
+    _apiKey = settings.apiKey || "";
+  }
 
-  async executeSearch(query, _page, _timeFilter, context) {
-    if (!_isConfigured()) return { results: [] };
-
+  async executeSearch(query, page = 1, _timeFilter, context) {
+    if (!_isConfigured()) return [];
     const doFetch = context?.fetch ?? fetch;
-    let data;
     try {
-      const q = encodeURIComponent(JSON.stringify({ text: query, include_text: true, limit: 20 }));
+      const q = encodeURIComponent(
+        JSON.stringify({ text: query, include_text: true, limit: 20 }),
+      );
       const res = await doFetch(
-        `${cfg.url}/search?query=${q}`,
+        `${_url}/search?query=${q}`,
         { headers: _headers() },
       );
-      if (!res.ok) return { results: [] };
-      data = JSON.parse(await res.text());
+      if (!res.ok) return [];
+      const data = await res.json();
+
+      // Hister returns { documents: [...] } with Go PascalCase fallbacks
+      const raw =
+        data.Documents ?? data.documents ??
+        data.results   ?? data.hits      ?? data.items ??
+        (Array.isArray(data) ? data : []);
+
+      if (!Array.isArray(raw)) return [];
+
+      return raw
+        .map((r) => ({
+          title:   r.Title   || r.title   || r.URL || r.url || "Untitled",
+          url:     r.URL     || r.url     || "",
+          snippet: r.Snippet || r.snippet || r.Excerpt || r.excerpt ||
+                   (r.text   || r.Text    || "").slice(0, 200) || "",
+          source:  this.name,
+        }))
+        .filter((r) => r.title && r.url);
     } catch {
-      return { results: [] };
+      return [];
     }
-
-    // Hister returns { documents: [...] } with Go PascalCase fallbacks
-    const raw =
-      data.Documents ?? data.documents ??
-      data.results   ?? data.hits      ?? data.items ??
-      (Array.isArray(data) ? data : []);
-
-    if (!Array.isArray(raw)) return { results: [] };
-
-    const results = raw.map((r) => ({
-      title:   r.Title   || r.title   || r.URL  || r.url  || "Untitled",
-      url:     r.URL     || r.url     || "#",
-      snippet: r.Snippet || r.snippet || r.text?.slice(0, 200) || r.Text?.slice(0, 200) || "",
-      source:  "Hister",
-    }));
-
-    return { results };
-  },
-};
+  }
+}

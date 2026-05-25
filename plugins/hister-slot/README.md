@@ -20,14 +20,14 @@ When you search, a **"In your index"** panel appears alongside regular results, 
 | **Show panel** | Enable or disable the "In your index" panel | ✅ enabled |
 | **Panel position** | `above-results` · `below-results` · `knowledge-panel` · `above-sidebar` | `above-results` |
 | **Results to show** | How many Hister results to display in the panel (1–20) | `5` |
-| **Hister First mode** | Skip other search engines entirely when your history has enough results | ❌ disabled |
-| **Minimum results to activate** | How many Hister results are needed to trigger Hister First (1–50) | `10` |
+| **Pre-fetch mode** | Pre-fetch Hister in parallel so the panel renders instantly from cache | ❌ disabled |
+| **Badge threshold** | Minimum results to show the count badge in the panel (1–50) | `10` |
 
-## Hister First
+## Pre-fetch mode
 
-When **Hister First** is enabled, every search pre-fetches your Hister index. If the result count meets the threshold, other search engines are skipped — your search query never leaves your infrastructure.
+When enabled, every search triggers a Hister fetch in parallel with the other engines. The slot panel reads from the shared cache and appears immediately without waiting for a second round-trip. When the result count meets the badge threshold, a small counter badge is shown next to the "View all" link.
 
-A banner at the top of the panel shows how many history results were found and provides a **Search all engines →** link to run a full search on demand.
+> **Note:** The Degoog interceptor API (`InterceptorResult = { query }`) cannot stop other engines from running. Truly blocking them would require a core Degoog change. Use the **`!hister`** bang shortcut or the dedicated **Hister tab** (via Hister Engine) to search only your history.
 
 ## Authentication
 
