@@ -13,15 +13,23 @@ Results from your Hister index appear in a **dedicated tab** alongside Web, Imag
 
 ## Settings
 
-| Setting | Description |
-|---|---|
-| **Hister Instance URL** | Base URL of your Hister instance, e.g. `https://hister.example.com` |
-| **API Key** | Your Hister Access Token — find it under **Hister → Profile → Access Token** |
+| Setting | Description | Default |
+|---|---|---|
+| **Hister Instance URL** | Base URL of your Hister instance, e.g. `https://hister.example.com` | *(required)* |
+| **API Key** | Your Hister Access Token — find it under **Hister → Profile → Access Token** | *(optional)* |
+| **Hister First mode** | Route searches exclusively to Hister when your history has enough results | ❌ disabled |
+| **Minimum results to activate** | How many Hister results are needed to skip other engines (1–50) | `10` |
 
 ## Usage
 
 - **Tab search** — select the **Hister** tab on any results page to search only your history index.
 - **Bang shortcut** — type `!hister <query>` in the search bar to jump directly to Hister results.
+
+## Hister First
+
+When **Hister First** is enabled, every search pre-fetches your Hister index in parallel. If the result count meets the threshold, the query is routed exclusively to Hister — no search query is sent to external engines.
+
+The Hister Slot plugin (if installed) will display a **"Search all engines →"** link that lets you run a full search on demand for that query.
 
 ## Authentication
 
