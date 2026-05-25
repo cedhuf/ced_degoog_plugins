@@ -32,24 +32,30 @@ function _isConfigured() {
   return Boolean(cfg.url);
 }
 
-function _headers() {
-  const h = { Accept: "application/json" };
+function _headers(extra = {}) {
+  const h = { Accept: "application/json", ...extra };
   if (cfg.apiKey) h["Authorization"] = `Bearer ${cfg.apiKey}`;
   return h;
 }
 
 // Hister search: GET /search?q=<query>
-// Note: "limit" is only valid in JSON body (POST), not as a GET query param.
-// We receive all results and slice client-side.
+// "limit" is only valid in JSON body, not as a GET param — slice client-side.
+// A 500 with "Internal Server Error" almost always means the instance requires
+// auth: the Go handler panics on a nil user when the request is unauthenticated.
+// Fix: enter your API token in Settings → Plugins → Hister → API Key.
 async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
   const url = `${cfg.url}/search?q=${encodeURIComponent(query)}`;
   const res  = await doFetch(url, { headers: _headers() });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    const authHint = res.status === 500 && !cfg.apiKey
+      ? "\n→ Your instance likely requires authentication. Set your API key in plugin settings."
+      : "";
     throw new Error(
       `HTTP ${res.status} from ${url}` +
-      (body ? `\nServer response: ${body.slice(0, 300)}` : ""),
+      (body ? `\nServer: ${body.slice(0, 200)}` : "") +
+      authHint,
     );
   }
   const text = await res.text();
@@ -229,7 +235,19 @@ export const slot = {
 
 // ── Diagnostic route ──────────────────────────────────────────────────────────
 // GET /api/plugin/<plugin-id>/test
-// Calls GET /search?q=test and returns the raw response for debugging.
+// Runs three checks and returns full diagnostic info.
+
+async function _probe(label, fetchFn) {
+  try {
+    const res  = await fetchFn();
+    const text = await res.text();
+    let body;
+    try { body = JSON.parse(text); } catch { body = text.slice(0, 300); }
+    return { label, status: res.status, ok: res.ok, body };
+  } catch (err) {
+    return { label, status: null, ok: false, error: String(err) };
+  }
+}
 
 export const routes = [
   {
@@ -239,29 +257,37 @@ export const routes = [
       if (!cfg.url) {
         return _jsonResponse({ ok: false, error: "URL not configured — save settings first." });
       }
-      const endpoint = `${cfg.url}/search?q=test`;
-      try {
-        const res  = await fetch(endpoint, { headers: _headers() });
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); } catch { data = text.slice(0, 500); }
-        return _jsonResponse({
-          ok:       res.ok,
-          status:   res.status,
-          endpoint,
-          response: data,
-          hint: res.ok
-            ? "Connection OK. If results still don't appear, verify the slot toggle is on and restart the container."
-            : `HTTP ${res.status} — check your URL and API key.`,
-        });
-      } catch (err) {
-        return _jsonResponse({
-          ok:       false,
-          error:    String(err),
-          endpoint,
-          hint:     "Hister may be unreachable from the Degoog server. Check network/firewall.",
-        });
-      }
+
+      const [stats, searchNoAuth, searchAuth] = await Promise.all([
+        // 1. /api/stats — public endpoint, tests basic reachability
+        _probe("GET /api/stats (no auth)", () =>
+          fetch(`${cfg.url}/api/stats`, { headers: { Accept: "application/json" } }),
+        ),
+        // 2. /search?q=test — no auth, to see if instance is public
+        _probe("GET /search?q=test (no auth)", () =>
+          fetch(`${cfg.url}/search?q=test`, { headers: { Accept: "application/json" } }),
+        ),
+        // 3. /search?q=test — with configured API key (Bearer token)
+        _probe("GET /search?q=test (with API key)", () =>
+          fetch(`${cfg.url}/search?q=test`, { headers: _headers() }),
+        ),
+      ]);
+
+      const apiKeySet = Boolean(cfg.apiKey);
+      const searchOk  = searchAuth.ok || searchNoAuth.ok;
+
+      return _jsonResponse({
+        config: {
+          url:       cfg.url,
+          apiKeySet,
+        },
+        checks: { stats, searchNoAuth, searchAuth },
+        verdict: searchOk
+          ? "Connection OK — if results still don't appear check the slot toggle and restart the container."
+          : apiKeySet
+            ? "Search failed even with API key. Check that the token is valid (Hister → Settings → Generate token)."
+            : "Search failed without API key. Your instance likely requires authentication — set your API key in plugin settings.",
+      });
     },
   },
 ];
