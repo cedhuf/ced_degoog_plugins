@@ -25,7 +25,6 @@ Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-t
 | Feature | Description |
 |---|---|
 | **Slot** | "In your index" panel shown alongside regular results (position configurable) |
-| **Pre-fetch interceptor** | Optionally pre-loads Hister results before the panel renders, saving one HTTP round-trip |
 
 **Requirements:** Degoog ≥ 0.17.0 · Hister (any recent version)
 
@@ -33,22 +32,20 @@ Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-t
 
 | Setting | Description | Default |
 |---|---|---|
-| Hister Instance URL | `http://hister:8080` | *(required)* |
+| Hister Instance URL | `http://hister:4433` | *(required)* |
 | API Key | API key if the instance is protected | *(optional)* |
 | Show panel | Display the "In your index" panel in results | ✅ |
 | Panel position | `above-results` / `below-results` / `knowledge-panel` / `above-sidebar` | `above-results` |
-| Enable pre-fetching | Pre-load results before panel renders | ❌ |
-| Pre-fetch result count | How many results to pre-load | `5` |
 
 **Testing the connection:**
 
 Once the URL is saved, open this in your browser (replace `<plugin-id>` with the value shown in the URL field description):
 
 ```
-http://your-degoog/api/plugin/<plugin-id>/test
+http://your-degoog/api/plugin/hister-slot/test
 ```
 
-The endpoint returns the raw Hister API response, status code, and a hint — useful for diagnosing endpoint or format mismatches.
+The endpoint returns the raw Hister API response (calls `GET /search?q=test&limit=3`), status code, and a hint — useful for diagnosing endpoint or format mismatches. The exact plugin ID may differ; check the clickable link shown in the URL field description inside Degoog's settings.
 
 ---
 
