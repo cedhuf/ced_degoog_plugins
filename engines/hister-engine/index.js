@@ -56,10 +56,11 @@ export default {
     const doFetch = context?.fetch ?? fetch;
     let data;
     try {
-      const res = await doFetch(
-        `${cfg.url}/search?q=${encodeURIComponent(query)}`,
-        { headers: _headers() },
-      );
+      const res = await doFetch(`${cfg.url}/search`, {
+        method:  "POST",
+        headers: { ..._headers(), "Content-Type": "application/json" },
+        body:    JSON.stringify({ q: query, include_text: true }),
+      });
       if (!res.ok) return { results: [] };
       data = JSON.parse(await res.text());
     } catch {

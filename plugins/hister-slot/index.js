@@ -39,10 +39,13 @@ function _headers() {
 
 async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
-  const res = await doFetch(
-    `${cfg.url}/search?q=${encodeURIComponent(query)}`,
-    { headers: _headers() },
-  );
+  // POST with JSON body is required to enable include_text — the GET endpoint
+  // never populates the text field (IncludeText flag is not parsed from URL params).
+  const res = await doFetch(`${cfg.url}/search`, {
+    method:  "POST",
+    headers: { ..._headers(), "Content-Type": "application/json" },
+    body:    JSON.stringify({ q: query, include_text: true }),
+  });
   if (!res.ok) {
     if (!cfg.apiKey && (res.status === 401 || res.status === 403 || res.status === 500)) {
       throw new Error(
@@ -268,11 +271,19 @@ export const routes = [
       }
 
       const [noAuth, withAuth] = await Promise.all([
-        _probe("GET /search?q=test (no auth)", () =>
-          fetch(`${cfg.url}/search?q=test`, { headers: { Accept: "application/json", Origin: cfg.url } }),
+        _probe("POST /search (no auth)", () =>
+          fetch(`${cfg.url}/search`, {
+            method: "POST",
+            headers: { Accept: "application/json", "Content-Type": "application/json", Origin: cfg.url },
+            body: JSON.stringify({ q: "test", include_text: true }),
+          }),
         ),
-        _probe("GET /search?q=test (with API key)", () =>
-          fetch(`${cfg.url}/search?q=test`, { headers: _headers() }),
+        _probe("POST /search (with API key)", () =>
+          fetch(`${cfg.url}/search`, {
+            method: "POST",
+            headers: { ..._headers(), "Content-Type": "application/json" },
+            body: JSON.stringify({ q: "test", include_text: true }),
+          }),
         ),
       ]);
 
