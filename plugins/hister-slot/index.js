@@ -135,8 +135,11 @@ export const interceptor = {
   async intercept(query, context) {
     const q = query.trim();
 
+    console.log(`[hister-slot interceptor] called — query="${q}" enabled=${_histerFirstEnabled} configured=${_isConfigured()}`);
+
     // Skip: already prefixed, bang command, not configured, feature disabled
     if (!q || /^hister:/i.test(q) || /^!/.test(q) || !_isConfigured() || !_histerFirstEnabled) {
+      console.log(`[hister-slot interceptor] skipped (early return)`);
       return { query };
     }
 
@@ -146,6 +149,7 @@ export const interceptor = {
     // Serve from cache if still fresh
     const cached = _getCached(q);
     if (cached) {
+      console.log(`[hister-slot interceptor] cache hit — activated=${cached.activated}`);
       return cached.activated ? { query: `hister:${q}` } : { query };
     }
 
@@ -153,16 +157,18 @@ export const interceptor = {
     let results;
     try {
       results = await _search(q, context?.fetch, _histerFirstThreshold + 5);
-    } catch {
-      return { query }; // Hister unreachable → fall through to normal search
+      console.log(`[hister-slot interceptor] Hister returned ${results.length} results (threshold=${_histerFirstThreshold})`);
+    } catch (err) {
+      console.log(`[hister-slot interceptor] Hister fetch failed: ${err.message}`);
+      return { query };
     }
 
     const activated = results.length >= _histerFirstThreshold;
     _prefetchCache.set(q, { results, ts: Date.now(), activated });
 
-    // When threshold is met, prefix with engine type so Degoog routes exclusively
-    // to engines with export const type = "hister" (i.e. the Hister Engine).
-    return activated ? { query: `hister:${q}` } : { query };
+    const returnQuery = activated ? `hister:${q}` : q;
+    console.log(`[hister-slot interceptor] returning query="${returnQuery}" activated=${activated}`);
+    return { query: returnQuery };
   },
 };
 
@@ -345,6 +351,23 @@ export const slot = {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 export const routes = [
+  {
+    // GET /api/plugin/hister-slot/debug
+    // Returns current plugin state — useful to verify the plugin version is loaded.
+    method: "get",
+    path:   "/debug",
+    handler(_req) {
+      return new Response(JSON.stringify({
+        configured:       _isConfigured(),
+        url:              cfg.url ? cfg.url.replace(/^https?:\/\//, "").split("/")[0] : null,
+        histerFirst:      _histerFirstEnabled,
+        threshold:        _histerFirstThreshold,
+        folderName:       _folderName,
+        cacheSize:        _prefetchCache.size,
+        skipOnceSize:     _skipOnce.size,
+      }), { headers: { "Content-Type": "application/json" } });
+    },
+  },
   {
     // GET /api/plugin/hister-slot/skip?q=<query>
     // Marks the query as skip-once so the interceptor won't activate on the
