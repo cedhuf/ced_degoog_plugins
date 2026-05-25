@@ -18,7 +18,7 @@ Then **Browse** → pick an extension → **Install** → **Configure**.
 
 ## Available extensions
 
-### 🔍 Hister — Plugin
+### Hister Slot
 
 Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-text web history search engine — directly into Degoog.
 
@@ -32,24 +32,19 @@ Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-t
 
 | Setting | Description | Default |
 |---|---|---|
-| Hister Instance URL | `http://hister:4433` | *(required)* |
-| API Key | API key if the instance is protected | *(optional)* |
+| Hister Instance URL | `https://hister.example.com` | *(required)* |
+| API Key | Your Hister Access Token (Hister → Profile → Access Token) | *(optional)* |
 | Show panel | Display the "In your index" panel in results | ✅ |
 | Panel position | `above-results` / `below-results` / `knowledge-panel` / `above-sidebar` | `above-results` |
+| Results to show | Number of results displayed in the panel | `5` |
 
 **Testing the connection:**
 
-Once the URL is saved, open this in your browser (replace `<plugin-id>` with the value shown in the URL field description):
-
-```
-http://your-degoog/api/plugin/hister-slot/test
-```
-
-The endpoint returns the raw Hister API response (calls `GET /search?q=test&limit=3`), status code, and a hint — useful for diagnosing endpoint or format mismatches. The exact plugin ID may differ; check the clickable link shown in the URL field description inside Degoog's settings.
+Once the URL is saved, a test link appears directly in the URL field description inside Settings → Plugins → Hister Slot. Click it to open the diagnostic endpoint in a new tab — it shows the raw Hister API response and a verdict.
 
 ---
 
-### 🔍 Hister — Engine
+### Hister Engine
 
 Registers Hister as a native Degoog search engine. Results appear in a dedicated tab and via the `!hister` bang shortcut.
 
@@ -61,16 +56,19 @@ Install separately from **Settings → Store → Hister Engine**.
 
 ```
 ced_degoog_plugins/
-├── package.json          ← Degoog Store manifest
+├── package.json               ← Degoog Store manifest
 ├── README.md
 ├── plugins/
-│   └── hister/
-│       ├── index.js      ← slot + interceptor + /test route
-│       ├── style.css     ← scoped styles (uses Degoog CSS variables)
+│   └── hister-slot/
+│       ├── index.js           ← slot + /test diagnostic route
+│       ├── style.css          ← scoped styles (uses Degoog CSS variables)
+│       ├── logo.png
+│       ├── screenshot.png
 │       └── author.json
 └── engines/
-    └── hister/
-        └── index.js      ← standalone search engine + !hister bang
+    └── hister-engine/
+        ├── index.js           ← standalone search engine + !hister bang
+        └── screenshot.png
 ```
 
 ## License

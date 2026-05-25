@@ -5,22 +5,23 @@
   "repo-image": "logo.png",
   "plugins": [
     {
-      "path": "plugins/hister",
-      "name": "Hister",
-      "description": "Intègre votre index personnel [Hister](https://github.com/asciimoo/hister) dans Degoog — slot « Dans votre index » et pré-chargement des résultats.",
-      "version": "1.1.0",
-      "type": "slot"
+      "path": "plugins/hister-slot",
+      "name": "Hister Slot",
+      "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
+      "version": "1.2.0",
+      "type": "slot",
+      "screenshots": ["screenshot.png"]
     }
   ],
   "engines": [
     {
-      "path": "engines/hister",
-      "name": "Hister",
-      "description": "Moteur de recherche Hister natif — résultats dans un onglet dédié et bang `!hister`.",
-      "version": "1.1.0"
+      "path": "engines/hister-engine",
+      "name": "Hister Engine",
+      "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
+      "version": "1.2.0",
+      "screenshots": ["screenshot.png"]
     }
   ],
   "themes": [],
-  "transports": [],
-  "repo-image": "logo.png"
+  "transports": []
 }
