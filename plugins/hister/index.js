@@ -19,9 +19,10 @@ const cfg = {
   slotPosition: "above-results",
 };
 
-// Plugin ID injected by Degoog at runtime — used to build the test URL
+// Plugin ID injected by Degoog at runtime.
+// Store format: <author>-<repo>-<folder> → cedhuf-ced_degoog_plugins-hister
 const _pluginId =
-  typeof __PLUGIN_ID__ !== "undefined" ? __PLUGIN_ID__ : "hister-slot"; // eslint-disable-line no-undef
+  typeof __PLUGIN_ID__ !== "undefined" ? __PLUGIN_ID__ : "cedhuf-ced_degoog_plugins-hister"; // eslint-disable-line no-undef
 
 // logo.png encoded as data-URL, loaded once in init()
 let _logoDataUrl = "";
@@ -40,22 +41,25 @@ function _headers(extra = {}) {
 
 // Hister search: GET /search?q=<query>
 // "limit" is only valid in JSON body, not as a GET param — slice client-side.
-// A 500 with "Internal Server Error" almost always means the instance requires
-// auth: the Go handler panics on a nil user when the request is unauthenticated.
-// Fix: enter your API token in Settings → Plugins → Hister → API Key.
+// HTTP 500 "Internal Server Error" = Go handler panics on unauthenticated request
+// (nil user pointer). Fix: go to Hister → Profile → copy the API token and paste
+// it in Degoog → Settings → Plugins → Hister → API Key.
 async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
   const url = `${cfg.url}/search?q=${encodeURIComponent(query)}`;
   const res  = await doFetch(url, { headers: _headers() });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    const authHint = res.status === 500 && !cfg.apiKey
-      ? "\n→ Your instance likely requires authentication. Set your API key in plugin settings."
-      : "";
+    let hint = "";
+    if (res.status === 500) {
+      hint = cfg.apiKey
+        ? "\n→ API key is set but the server still 500s. Check the token is valid: Hister → Profile → API token."
+        : "\n→ No API key configured. Go to Hister → Profile → copy the API token, then set it in Degoog → Settings → Plugins → Hister → API Key.";
+    }
     throw new Error(
       `HTTP ${res.status} from ${url}` +
       (body ? `\nServer: ${body.slice(0, 200)}` : "") +
-      authHint,
+      hint,
     );
   }
   const text = await res.text();
