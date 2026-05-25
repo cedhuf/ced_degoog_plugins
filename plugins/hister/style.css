@@ -1,0 +1,131 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Hister plugin — style.css
+   Uses Degoog CSS variables so the plugin respects every theme automatically.
+   All selectors are prefixed .hister-* to avoid collisions.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Slot container ─────────────────────────────────────────────────────────── */
+
+.hister-slot {
+  border: 1px solid var(--degoog-border, rgba(128,128,128,0.25));
+  border-radius: var(--degoog-radius, 8px);
+  background: var(--degoog-surface, var(--degoog-bg, #fff));
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ── Slot header ─────────────────────────────────────────────────────────────── */
+
+.hister-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+  color: var(--degoog-text-muted, var(--degoog-text-secondary, #888));
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hister-slot-icon {
+  display: flex;
+  align-items: center;
+  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
+}
+
+.hister-slot-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.hister-slot-title {
+  flex: 1;
+  color: var(--degoog-text-muted, inherit);
+}
+
+.hister-slot-viewall {
+  font-size: 0.75rem;
+  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.hister-slot-viewall:hover {
+  text-decoration: underline;
+}
+
+/* ── Individual result ───────────────────────────────────────────────────────── */
+
+.hister-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.hister-result {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--degoog-border-subtle, rgba(128,128,128,0.1));
+}
+
+.hister-result:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.hister-result-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--degoog-link, var(--degoog-accent, #4a9eff));
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.hister-result-title:hover {
+  text-decoration: underline;
+}
+
+.hister-result-url {
+  font-size: 0.72rem;
+  color: var(--degoog-text-muted, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.hister-result-snippet {
+  font-size: 0.8rem;
+  color: var(--degoog-text, var(--degoog-text-primary, inherit));
+  margin-top: 2px;
+  opacity: 0.85;
+  /* Clamp to 2 lines */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.hister-date {
+  font-size: 0.7rem;
+  color: var(--degoog-text-muted, #aaa);
+  margin-left: 0.35rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .hister-slot {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .hister-result-title {
+    font-size: 0.85rem;
+  }
+}

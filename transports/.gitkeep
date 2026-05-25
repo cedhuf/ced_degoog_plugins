@@ -1,0 +1,2 @@
+# Ce dossier accueillera les futurs transports HTTP custom Degoog.
+# Format : transports/mon-transport/index.js

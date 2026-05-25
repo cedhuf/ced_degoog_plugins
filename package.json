@@ -1,0 +1,18 @@
+{
+  "name": "ced_degoog_plugins",
+  "description": "Degoog extensions by cedhuf — self-hosted integrations for your homelab stack.",
+  "author": "cedhuf",
+  "repo-image": "logo.png",
+  "plugins": [
+    {
+      "path": "plugins/hister",
+      "name": "Hister",
+      "description": "Intègre votre index personnel [Hister](https://github.com/asciimoo/hister) dans Degoog — slot « Dans votre index », intercepteur anti-redondance, et moteur natif.",
+      "version": "1.0.0",
+      "type": "slot"
+    }
+  ],
+  "themes": [],
+  "engines": [],
+  "transports": []
+}
