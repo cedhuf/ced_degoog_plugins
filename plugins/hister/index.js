@@ -1,27 +1,23 @@
 // Hister plugin for Degoog
 // Integrates Hister (personal full-text web history index) into Degoog search.
 //
-// Exports:
-//   • slot        — "In your index" panel injected into the results page
-//   • interceptor — optional: pre-fetches results before slot renders (install
-//                   alongside the slot, enable via slot settings)
-//   • routes      — GET test: raw connection diagnostic endpoint
+// Single export: slot — "In your index" panel injected into the results page.
+// No interceptor export (it would register as a second separate plugin).
+//
+// Hister search API: GET /search?q=<query>
+// Hister SPA URL:    /?q=<query>  (used for "View all" links)
 //
 // Requires Degoog ≥ 0.17.0
 // isClientExposed: false → all requests go through the Degoog server
 
-// ── Config (shared between slot and interceptor via module scope) ──────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const cfg = {
-  url:                  "",
-  apiKey:               "",
-  slotEnabled:          true,
-  slotPosition:         "above-results",
-  interceptorEnabled:   false,
+  url:          "",
+  apiKey:       "",
+  slotEnabled:  true,
+  slotPosition: "above-results",
 };
-
-// Pre-fetch cache: interceptor writes, slot reads (avoids double HTTP call)
-const _cache = new Map();
 
 // Plugin ID injected by Degoog at runtime — used to build the test URL
 const _pluginId =
@@ -42,28 +38,34 @@ function _headers() {
   return h;
 }
 
-// Hister search endpoint: GET /search?q=<query>
-// Valid Hister GET params: q, date_from, date_to, include_html, page_key, sort, semantic
-// NOTE: "limit" is NOT a valid parameter — slicing is done client-side
+// Hister search: GET /search?q=<query>
+// Note: "limit" is only valid in JSON body (POST), not as a GET query param.
+// We receive all results and slice client-side.
 async function _search(query, contextFetch) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
   const url = `${cfg.url}/search?q=${encodeURIComponent(query)}`;
   const res  = await doFetch(url, { headers: _headers() });
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `HTTP ${res.status} from ${url}` +
+      (body ? `\nServer response: ${body.slice(0, 300)}` : ""),
+    );
+  }
   const text = await res.text();
   let data;
   try {
     data = JSON.parse(text);
   } catch {
     throw new Error(
-      `Non-JSON response from Hister (${res.status}). First 300 chars:\n${text.slice(0, 300)}`,
+      `Non-JSON response from ${url}\nFirst 300 chars: ${text.slice(0, 300)}`,
     );
   }
   // Hister returns { Documents: [...], History: [...], ... }
-  // Go JSON marshaling uses PascalCase by default; fall back to lowercase variants
+  // Go marshals struct fields as PascalCase by default; fall back to lowercase
   const raw =
-    data.Documents  ?? data.documents  ??
-    data.results    ?? data.hits       ?? data.items ??
+    data.Documents ?? data.documents ??
+    data.results   ?? data.hits      ?? data.items ??
     (Array.isArray(data) ? data : []);
   return Array.isArray(raw) ? raw : [];
 }
@@ -78,9 +80,9 @@ function _esc(s) {
 
 function _renderResult(r) {
   // Handle both Go PascalCase and json-tagged lowercase field names
-  const title   = r.Title   || r.title   || r.URL   || r.url   || "Untitled";
+  const title   = r.Title   || r.title   || r.URL    || r.url    || "Untitled";
   const url     = r.URL     || r.url     || "#";
-  const content = r.Content || r.content || r.Body  || r.body  || "";
+  const content = r.Content || r.content || r.Body   || r.body   || "";
   const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 180);
   const rawDate = r.Date    || r.date    || r.VisitedAt || r.visited_at || r.Timestamp || r.timestamp;
   const dateHtml = rawDate
@@ -115,8 +117,8 @@ export const slot = {
       label:       "Hister Instance URL",
       type:        "url",
       required:    true,
-      placeholder: "http://hister:4433",
-      description: `Base URL of your Hister instance, no trailing slash. Test at [/api/plugin/${_pluginId}/test](/api/plugin/${_pluginId}/test).`,
+      placeholder: "https://hister.example.com",
+      description: `Base URL of your Hister instance, no trailing slash. Test connection at [/api/plugin/${_pluginId}/test](/api/plugin/${_pluginId}/test).`,
     },
     {
       key:         "apiKey",
@@ -124,7 +126,7 @@ export const slot = {
       type:        "password",
       required:    false,
       placeholder: "(optional)",
-      description: "API key if your Hister instance requires authentication.",
+      description: "API key if your Hister instance requires authentication (Hister → Settings → Generate token).",
       secret:      true,
     },
     {
@@ -142,40 +144,32 @@ export const slot = {
       default:     "above-results",
       description: "Where to display the Hister panel on the results page.",
     },
-    {
-      key:         "interceptorEnabled",
-      label:       "Enable result pre-fetching (requires interceptor plugin)",
-      type:        "toggle",
-      default:     false,
-      description: "Pre-fetch Hister results before the panel renders to avoid a double HTTP request. Only effective when the Hister — Pre-fetch plugin is also installed.",
-    },
   ],
 
   configure(settings) {
-    cfg.url                = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey             = settings.apiKey || "";
-    cfg.slotEnabled        = settings.slotEnabled !== false;
-    cfg.slotPosition       = settings.slotPosition || "above-results";
-    cfg.interceptorEnabled = settings.interceptorEnabled === true;
-    slot.position          = cfg.slotPosition;
+    cfg.url          = (settings.url || "").replace(/\/$/, "");
+    cfg.apiKey       = settings.apiKey || "";
+    cfg.slotEnabled  = settings.slotEnabled !== false;
+    cfg.slotPosition = settings.slotPosition || "above-results";
+    slot.position    = cfg.slotPosition;
   },
 
   async init(ctx) {
-    // Load logo.png as a data-URL for embedding in the slot header
+    // Load logo.png as a data-URL so it can be embedded directly in the slot HTML.
+    // Approach 1: node:fs/promises + ctx.dir (absolute path to the plugin folder)
     try {
-      // Preferred: read via Node.js fs using ctx.dir (absolute plugin folder path)
       const { readFile } = await import("node:fs/promises");
       const { join }     = await import("node:path");
       const buf = await readFile(join(ctx.dir, "logo.png"));
       _logoDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
+      return;
+    } catch { /* fall through */ }
+    // Approach 2: Degoog's ctx.readFile (returns file as a binary string)
+    try {
+      const raw = await ctx.readFile("logo.png");
+      _logoDataUrl = `data:image/png;base64,${Buffer.from(raw, "binary").toString("base64")}`;
     } catch {
-      try {
-        // Fallback: Degoog's ctx.readFile (returns binary as a string)
-        const raw = await ctx.readFile("logo.png");
-        _logoDataUrl = `data:image/png;base64,${Buffer.from(raw, "binary").toString("base64")}`;
-      } catch {
-        _logoDataUrl = "";
-      }
+      _logoDataUrl = ""; // SVG fallback used in execute()
     }
   },
 
@@ -184,28 +178,25 @@ export const slot = {
   },
 
   async execute(query, context) {
-    let results = _cache.get(query);
-    if (results) {
-      _cache.delete(query);
-    } else {
-      try {
-        results = await _search(query, context?.fetch);
-      } catch (err) {
-        return {
-          title: "Hister",
-          html: `<div class="hister-slot hister-error">
-            <p><strong>Could not reach Hister:</strong></p>
-            <pre style="white-space:pre-wrap;font-size:.75rem;opacity:.8;overflow:auto;max-height:8rem">${_esc(String(err))}</pre>
-            <p>Check your URL and API key in <strong>Settings → Plugins → Hister</strong>.</p>
-          </div>`,
-        };
-      }
+    let results;
+    try {
+      results = await _search(query, context?.fetch);
+    } catch (err) {
+      return {
+        title: "Hister",
+        html: `<div class="hister-slot hister-error">
+          <p><strong>Could not reach Hister:</strong></p>
+          <pre style="white-space:pre-wrap;font-size:.75rem;opacity:.8;overflow:auto;max-height:10rem">${_esc(String(err))}</pre>
+          <p>Check your URL and API key in <strong>Settings → Plugins → Hister</strong>.</p>
+        </div>`,
+      };
     }
 
-    // Limit display to 5 results client-side (Hister API has no limit param)
+    // Hister returns all results — cap display at 5
     const displayed = results.slice(0, 5);
     if (!displayed.length) return { html: "" };
 
+    // "View all" → Hister SPA URL (/?q=..., not /search?q=...)
     const viewAll  = `${cfg.url}/?q=${encodeURIComponent(query)}`;
     const items    = displayed.map(_renderResult).join("");
     const iconHtml = _logoDataUrl
@@ -236,36 +227,9 @@ export const slot = {
   },
 };
 
-// ── Interceptor ───────────────────────────────────────────────────────────────
-// Optional companion to the slot: pre-fetches Hister results so the slot
-// renders without a second HTTP round-trip.
-//
-// No configure() here — reads from cfg which is kept in sync by slot.configure().
-// Install this alongside the Hister slot, then enable the toggle in slot settings.
-
-export const interceptor = {
-  name:        "Hister — Pre-fetch",
-  description: "Pre-fetches Hister results before the slot renders to avoid a double HTTP request. Install alongside the Hister slot and enable the toggle in slot settings.",
-  isClientExposed: false,
-
-  async intercept(query, context) {
-    _cache.delete(query);
-    if (!_isConfigured() || !cfg.slotEnabled || !cfg.interceptorEnabled) {
-      return { query };
-    }
-    try {
-      const results = await _search(query, context?.fetch);
-      if (results.length) _cache.set(query, results);
-    } catch {
-      // Never block search due to Hister being unavailable
-    }
-    return { query };
-  },
-};
-
 // ── Diagnostic route ──────────────────────────────────────────────────────────
-// Accessible at: /api/plugin/<plugin-id>/test
-// Returns raw Hister API response to help debug endpoint and response format.
+// GET /api/plugin/<plugin-id>/test
+// Calls GET /search?q=test and returns the raw response for debugging.
 
 export const routes = [
   {
@@ -287,7 +251,7 @@ export const routes = [
           endpoint,
           response: data,
           hint: res.ok
-            ? "Connection OK. If results still don't appear check that the slot toggle is on and restart the container."
+            ? "Connection OK. If results still don't appear, verify the slot toggle is on and restart the container."
             : `HTTP ${res.status} — check your URL and API key.`,
         });
       } catch (err) {
@@ -302,4 +266,4 @@ export const routes = [
   },
 ];
 
-export default { slot, interceptor };
+export default { slot };
