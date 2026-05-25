@@ -7,12 +7,19 @@
     {
       "path": "plugins/hister",
       "name": "Hister",
-      "description": "Intègre votre index personnel [Hister](https://github.com/asciimoo/hister) dans Degoog — slot « Dans votre index », intercepteur anti-redondance, et moteur natif.",
-      "version": "1.0.0",
+      "description": "Intègre votre index personnel [Hister](https://github.com/asciimoo/hister) dans Degoog — slot « Dans votre index » et pré-chargement des résultats.",
+      "version": "1.1.0",
       "type": "slot"
     }
   ],
+  "engines": [
+    {
+      "path": "engines/hister",
+      "name": "Hister",
+      "description": "Moteur de recherche Hister natif — résultats dans un onglet dédié et bang `!hister`.",
+      "version": "1.1.0"
+    }
+  ],
   "themes": [],
-  "engines": [],
   "transports": []
 }
