@@ -179,8 +179,11 @@
 
       _buildWordmarkContent(wrapper, config, fontDef);
 
-      if (el.tagName === "A") el.replaceChildren(wrapper);
-      else el.replaceWith(wrapper);
+      if (el.tagName === "A") {
+        el.style.color = "inherit";
+        el.style.textDecoration = "none";
+        el.replaceChildren(wrapper);
+      } else el.replaceWith(wrapper);
     }
   }
 

@@ -15,9 +15,9 @@
     {
       "path": "plugins/logotype",
       "name": "Logotype",
-      "description": "Replace the Degoog logo with your own image. Upload via the `!logo` command, control dimensions, and optionally add an intro animation.",
-      "version": "1.2.0",
-      "screenshots": ["screenshots/1.png"]
+      "description": "Replace the Degoog logo with a custom text wordmark or your own image. Style your brand with font, color, and decorator options — all with a live preview. Manage via `!logo`.",
+      "version": "1.2.1",
+      "screenshots": ["screenshots/screenshots.png"]
     }
   ],
   "engines": [
