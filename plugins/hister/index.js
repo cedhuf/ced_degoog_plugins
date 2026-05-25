@@ -35,9 +35,11 @@ function _isConfigured() {
 
 function _headers(extra = {}) {
   const h = { Accept: "application/json", ...extra };
+  // Hister's serveSearch validates Origin before auth — must match base_url
+  if (cfg.url) h["Origin"] = cfg.url;
   if (cfg.apiKey) {
     h["Authorization"]  = `Bearer ${cfg.apiKey}`;
-    h["X-Access-Token"] = cfg.apiKey; // Hister checks this header before Bearer
+    h["X-Access-Token"] = cfg.apiKey;
   }
   return h;
 }
@@ -56,7 +58,7 @@ async function _search(query, contextFetch) {
     let hint = "";
     if (res.status === 500) {
       hint = cfg.apiKey
-        ? `\n→ API key received (${cfg.apiKey.length} chars). Server still 500s — make sure the token matches Hister's app-level Access Token (Hister → Settings → Access token), NOT a user password or session token.`
+        ? `\n→ API key received (${cfg.apiKey.length} chars). Server 500 — likely an Origin header mismatch. Make sure the URL in settings matches your Hister base_url exactly (e.g. https://hister.example.com with no trailing slash).`
         : "\n→ No API key configured. Set the Hister Access Token in Degoog → Settings → Plugins → Hister → API Key.";
     }
     throw new Error(
@@ -272,7 +274,7 @@ export const routes = [
         ),
         // 2. /search?q=test — no auth, to see if instance is public
         _probe("GET /search?q=test (no auth)", () =>
-          fetch(`${cfg.url}/search?q=test`, { headers: { Accept: "application/json" } }),
+          fetch(`${cfg.url}/search?q=test`, { headers: { Accept: "application/json", Origin: cfg.url } }),
         ),
         // 3. /search?q=test — with configured API key (Bearer token)
         _probe("GET /search?q=test (with API key)", () =>
