@@ -1,16 +1,28 @@
 import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { join } from "path";
 
-const DATA_DIR = join(process.cwd(), "data", "logotype");
+const DATA_DIR  = join(process.cwd(), "data", "logotype");
 const LOGO_PATH = join(DATA_DIR, "logo.dat");
 const DIMS_PATH = join(DATA_DIR, "dimensions.json");
+const WM_PATH   = join(DATA_DIR, "wordmark.json");
 
 const DEFAULT_DIMS = { homeMaxHeight: 300, homeMaxWidth: 500, searchMaxHeight: 100, searchMaxWidth: 300 };
+
+const FONTS = [
+  { id: "outfit",        name: "Outfit",          family: "Outfit",           weight: "700" },
+  { id: "space-grotesk", name: "Space Grotesk",   family: "Space Grotesk",    weight: "700" },
+  { id: "bebas-neue",    name: "Bebas Neue",       family: "Bebas Neue",       weight: "400" },
+  { id: "playfair",      name: "Playfair",         family: "Playfair Display", weight: "700" },
+  { id: "raleway",       name: "Raleway",          family: "Raleway",          weight: "300" },
+  { id: "josefin",       name: "Josefin",          family: "Josefin Sans",     weight: "700" },
+];
+const FONT_IDS = new Set(FONTS.map(f => f.id));
+
+// ── Storage ───────────────────────────────────────────────────────────────────
 
 const _load = async () => {
   try { return await readFile(LOGO_PATH, "utf-8"); } catch { return null; }
 };
-
 const _save = async (dataUrl) => {
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(LOGO_PATH, dataUrl, "utf-8");
@@ -24,14 +36,27 @@ const _loadDimensions = async () => {
     return { ...DEFAULT_DIMS };
   }
 };
-
 const _saveDimensions = async (dims) => {
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(DIMS_PATH, JSON.stringify(dims), "utf-8");
 };
 
+const _loadWordmark = async () => {
+  try {
+    const raw = await readFile(WM_PATH, "utf-8");
+    const wm = JSON.parse(raw);
+    return typeof wm.text === "string" && wm.text.trim() ? wm : null;
+  } catch { return null; }
+};
+const _saveWordmark = async (config) => {
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(WM_PATH, JSON.stringify(config), "utf-8");
+};
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
 let hideLogoManagement = false;
-let logoIntro = "none";
+let logoIntro  = "none";
 let settingsLoaded = false;
 
 const _loadSettings = async () => {
@@ -41,23 +66,29 @@ const _loadSettings = async () => {
     const settingsPath = join(process.cwd(), "data", "plugin-settings.json");
     const raw = await readFile(settingsPath, "utf-8");
     const allSettings = JSON.parse(raw);
-    const pluginSettings = allSettings?.["plugin-logotype"];
-    if (pluginSettings) {
-      const val = pluginSettings.hideLogoManagement;
-      hideLogoManagement = val === true || val === "true";
-      const validIntros = ["none", "fade", "matrix"];
-      logoIntro = validIntros.includes(pluginSettings.logoIntro) ? pluginSettings.logoIntro : "none";
+    const s = allSettings?.["plugin-logotype"];
+    if (s) {
+      hideLogoManagement = s.hideLogoManagement === true || s.hideLogoManagement === "true";
+      const valid = ["none", "fade", "matrix"];
+      logoIntro = valid.includes(s.logoIntro) ? s.logoIntro : "none";
     }
-  } catch {
-    // Settings file doesn't exist or can't be read, use defaults
-  }
+  } catch {}
 };
-
 _loadSettings().catch(() => {});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function _esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ── Plugin export ─────────────────────────────────────────────────────────────
 
 export default {
   name: "Logotype",
-  description: "Replace the Degoog logo with your own image. Use !logo in the search bar to manage it.",
+  description: "Replace the Degoog logo with styled text or your own image. Use !logo to manage it.",
   trigger: "logo",
   isClientExposed: false,
 
@@ -75,15 +106,14 @@ export default {
       type: "select",
       options: ["none", "fade", "matrix"],
       default: "none",
-      description: "Canvas animation played when the logo first appears on the page.",
+      description: "Canvas animation played when an image logo first appears on the page.",
     },
   ],
 
   configure(settings) {
-    const val = settings?.hideLogoManagement;
-    hideLogoManagement = val === true || val === "true";
-    const validIntros = ["none", "fade", "matrix"];
-    logoIntro = validIntros.includes(settings?.logoIntro) ? settings.logoIntro : "none";
+    hideLogoManagement = settings?.hideLogoManagement === true || settings?.hideLogoManagement === "true";
+    const valid = ["none", "fade", "matrix"];
+    logoIntro = valid.includes(settings?.logoIntro) ? settings.logoIntro : "none";
     settingsLoaded = true;
   },
 
@@ -105,66 +135,91 @@ export default {
       };
     }
 
-    const [current, dims] = await Promise.all([_load(), _loadDimensions()]);
+    const [current, dims, wm] = await Promise.all([_load(), _loadDimensions(), _loadWordmark()]);
     const { homeMaxHeight, homeMaxWidth, searchMaxHeight, searchMaxWidth } = dims;
 
-    const previewHtml = current
-      ? `<img id="logotype-preview" src="${current}" alt="Current logo" style="max-height:80px;max-width:220px;object-fit:contain;display:block;border-radius:6px;border:1px solid rgba(255,255,255,0.1);padding:4px 8px;background:rgba(0,0,0,0.2);" />`
-      : `<p id="logotype-nologo" style="font-size:0.82rem;color:var(--text-secondary);font-style:italic;margin:0;">No custom logo set.</p>`;
+    const defaultTab = wm ? "text" : (current ? "image" : "text");
+    const wmText     = _esc(wm?.text || "");
+    const wmFont     = wm && FONT_IDS.has(wm.font) ? wm.font : "outfit";
+    const fontDef    = FONTS.find(f => f.id === wmFont) || FONTS[0];
 
-    const homePreviewImg = current
-      ? `<img id="logotype-home-preview-img" src="${current}" alt="Home logo preview" style="max-height:${homeMaxHeight}px;max-width:${homeMaxWidth}px;object-fit:contain;display:block;" />`
-      : `<img id="logotype-home-preview-img" src="" alt="Home logo preview" style="max-height:${homeMaxHeight}px;max-width:${homeMaxWidth}px;object-fit:contain;display:none;" />`;
+    // Preview logo element
+    const previewEl = wm
+      ? `<span id="lt-preview-el" class="lt-wm-preview-text" style="font-family:'${_esc(fontDef.family)}',sans-serif;font-weight:${fontDef.weight};">${wmText}</span>`
+      : current
+        ? `<img id="lt-preview-el" src="${current}" alt="Logo" style="max-height:80px;max-width:280px;object-fit:contain;display:block;" />`
+        : `<span id="lt-preview-el" class="lt-wm-preview-text lt-wm-preview-empty" style="font-family:'${_esc(fontDef.family)}',sans-serif;font-weight:${fontDef.weight};">Your brand</span>`;
 
+    // Font picker
+    const fontChips = FONTS.map(f =>
+      `<button class="lt-font-chip${f.id === wmFont ? " active" : ""}" data-font="${f.id}" style="font-family:'${_esc(f.family)}',sans-serif;font-weight:${f.weight};">${_esc(f.name)}</button>`
+    ).join("");
+
+    // Dimension sliders
     const sliderRow = (id, label, min, max, value) =>
-      `<div style="display:flex;align-items:center;gap:8px;">`
-      + `<span style="font-size:0.78rem;color:var(--text-secondary);min-width:110px;">${label}</span>`
-      + `<input id="${id}" type="range" min="${min}" max="${max}" value="${value}" style="flex:1;accent-color:var(--accent,#cba6f7);" />`
-      + `<span id="${id}-val" style="font-size:0.78rem;min-width:44px;text-align:right;">${value}px</span>`
+      `<div class="lt-slider-row">`
+      + `<span class="lt-slider-label">${label}</span>`
+      + `<input id="${id}" type="range" min="${min}" max="${max}" value="${value}" class="lt-slider" />`
+      + `<span id="${id}-val" class="lt-slider-val">${value}px</span>`
       + `</div>`;
+
+    // Current image thumb
+    const imgPreview = current
+      ? `<img id="logotype-preview" src="${current}" alt="Current logo" class="lt-img-thumb" />`
+      : `<p id="logotype-nologo" class="lt-img-none">No image set.</p>`;
 
     return {
       title: "Logotype",
       html: `
-        <div id="logotype-card" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
-          <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:20px 16px 24px;display:flex;flex-direction:column;align-items:center;gap:18px;">
-            <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);align-self:flex-start;">Home page preview</span>
-            ${homePreviewImg}
-            <div style="width:100%;max-width:584px;display:flex;flex-direction:column;align-items:stretch;gap:18px;">
-              <div style="display:flex;align-items:center;width:100%;border-radius:24px;border:1px solid rgba(255,255,255,0.15);background:var(--bg-secondary,#1e1e2e);padding:10px 16px;gap:12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.4;flex-shrink:0;">
-                  <circle cx="11" cy="11" r="8"/>
-                  <path d="M21 21l-4.35-4.35"/>
-                </svg>
-                <span style="flex:1;font-size:0.95rem;color:var(--text-secondary);user-select:none;"></span>
-              </div>
-              <div style="display:flex;gap:11px;justify-content:center;">
-                <span style="padding:10px 20px;border-radius:4px;font-size:0.875rem;background:rgba(255,255,255,0.05);color:var(--text-primary);border:1px solid rgba(255,255,255,0.1);user-select:none;font-weight:500;">Degoog Search</span>
-                <span style="padding:10px 20px;border-radius:4px;font-size:0.875rem;background:rgba(255,255,255,0.05);color:var(--text-primary);border:1px solid rgba(255,255,255,0.1);user-select:none;font-weight:500;">I'm Feeling Lucky</span>
-              </div>
+        <div id="logotype-card" data-default-tab="${defaultTab}" data-wm-font="${wmFont}">
+
+          <div class="lt-preview-wrap">
+            <span class="lt-preview-label">Preview</span>
+            <div class="lt-preview-logo-area">${previewEl}</div>
+            <div class="lt-preview-searchbar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:0.35;flex-shrink:0;">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
             </div>
           </div>
-          <div style="display:flex;align-items:flex-start;gap:10px;">
-            ${previewHtml}
-            <div style="display:flex;flex-direction:column;gap:6px;">
-              <label style="display:inline-flex;align-items:center;padding:6px 14px;border-radius:6px;font-size:0.82rem;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,0.15);background:var(--bg-secondary,#1e1e2e);color:var(--text-primary,#cdd6f4);">
-                Upload image
-                <input id="logotype-file" type="file" accept="image/*" style="display:none;" />
-              </label>
-              <button id="logotype-remove" style="display:inline-flex;align-items:center;padding:6px 14px;border-radius:6px;font-size:0.82rem;font-weight:600;cursor:pointer;border:1px solid rgba(243,139,168,0.25);background:var(--bg-secondary,#1e1e2e);color:var(--danger,#f38ba8);">
-                Remove
-              </button>
+
+          <div class="lt-tabs">
+            <button class="lt-tab${defaultTab === "text"  ? " active" : ""}" data-tab="text">Text</button>
+            <button class="lt-tab${defaultTab === "image" ? " active" : ""}" data-tab="image">Image</button>
+          </div>
+
+          <div id="lt-panel-text" class="lt-panel"${defaultTab !== "text" ? ' style="display:none;"' : ""}>
+            <input id="lt-wm-text" type="text" class="lt-text-input" value="${wmText}" placeholder="Your brand name…" maxlength="80" autocomplete="off" spellcheck="false" />
+            <div class="lt-font-picker">${fontChips}</div>
+            <button id="lt-wm-save" class="lt-btn">Save</button>
+          </div>
+
+          <div id="lt-panel-image" class="lt-panel"${defaultTab !== "image" ? ' style="display:none;"' : ""}>
+            <div class="lt-img-row">
+              ${imgPreview}
+              <div class="lt-img-actions">
+                <label class="lt-btn">
+                  Upload image
+                  <input id="logotype-file" type="file" accept="image/*" style="display:none;" />
+                </label>
+                <button id="logotype-remove" class="lt-btn lt-btn-danger">Remove</button>
+              </div>
+            </div>
+            <div class="lt-dims">
+              <span class="lt-dims-title">Dimensions</span>
+              ${sliderRow("lt-home-h",   "Home height",   20, 600,  homeMaxHeight)}
+              ${sliderRow("lt-home-w",   "Home width",    50, 1200, homeMaxWidth)}
+              ${sliderRow("lt-search-h", "Search height", 20, 300,  searchMaxHeight)}
+              ${sliderRow("lt-search-w", "Search width",  50, 600,  searchMaxWidth)}
+              <button id="logotype-save-dims" class="lt-btn">Save dimensions</button>
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
-            <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);">Dimensions</span>
-            ${sliderRow("lt-home-h", "Home height", 20, 600, homeMaxHeight)}
-            ${sliderRow("lt-home-w", "Home width", 50, 1200, homeMaxWidth)}
-            ${sliderRow("lt-search-h", "Search height", 20, 300, searchMaxHeight)}
-            ${sliderRow("lt-search-w", "Search width", 50, 600, searchMaxWidth)}
-            <button id="logotype-save-dims" style="align-self:flex-start;margin-top:2px;padding:5px 14px;border-radius:6px;font-size:0.82rem;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,0.15);background:var(--bg-secondary,#1e1e2e);color:var(--text-primary,#cdd6f4);">Save dimensions</button>
+
+          <div class="lt-footer">
+            <button id="lt-reset" class="lt-btn lt-btn-danger lt-btn-ghost">Reset all</button>
+            <p id="logotype-status" class="lt-status"></p>
           </div>
-          <p id="logotype-status" style="font-size:0.78rem;color:var(--text-secondary);margin:0;"></p>
+
         </div>`,
     };
   },
@@ -203,43 +258,69 @@ export default {
             headers: { "Content-Type": "application/json" },
           });
         }
-
         let body;
-        try {
-          body = await req.json();
-        } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
-
         const { dataUrl } = body ?? {};
-
         if (dataUrl === null || dataUrl === "") {
           try { await unlink(LOGO_PATH); } catch {}
-          return new Response(JSON.stringify({ ok: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
         }
-
         if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-          return new Response(JSON.stringify({ error: "Invalid image data" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(JSON.stringify({ error: "Invalid image data" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
-
-        const MAX_BYTES = 2 * 1024 * 1024;
-        if (dataUrl.length > MAX_BYTES * 1.37) {
-          return new Response(JSON.stringify({ error: "Image too large (max 2 MB)" }), {
-            status: 413,
-            headers: { "Content-Type": "application/json" },
-          });
+        if (dataUrl.length > 2 * 1024 * 1024 * 1.37) {
+          return new Response(JSON.stringify({ error: "Image too large (max 2 MB)" }), { status: 413, headers: { "Content-Type": "application/json" } });
         }
-
         await _save(dataUrl);
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    },
+    {
+      method: "get",
+      path: "/wordmark",
+      handler: async () => {
+        const wm = await _loadWordmark();
+        return new Response(JSON.stringify(wm ?? { text: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    },
+    {
+      method: "post",
+      path: "/wordmark",
+      handler: async (req) => {
+        await _loadSettings();
+        if (hideLogoManagement) {
+          return new Response(JSON.stringify({ error: "Logo management is disabled" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        let body;
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        const text = (body?.text ?? "").trim().slice(0, 80);
+        const font = FONT_IDS.has(body?.font) ? body.font : "outfit";
+        if (!text) {
+          try { await unlink(WM_PATH); } catch {}
+          return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        await _saveWordmark({ text, font });
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    },
+    {
+      method: "post",
+      path: "/reset",
+      handler: async () => {
+        await Promise.allSettled([
+          unlink(LOGO_PATH),
+          unlink(WM_PATH),
+        ]);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -268,29 +349,19 @@ export default {
             headers: { "Content-Type": "application/json" },
           });
         }
-
         let body;
-        try {
-          body = await req.json();
-        } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
-
         const _n = (v, fb) => { const n = parseInt(v, 10); return !isNaN(n) && n > 0 ? n : fb; };
         const dims = {
           homeMaxHeight: _n(body?.homeMaxHeight, 300),
-          homeMaxWidth: _n(body?.homeMaxWidth, 500),
+          homeMaxWidth:  _n(body?.homeMaxWidth,  500),
           searchMaxHeight: _n(body?.searchMaxHeight, 100),
-          searchMaxWidth: _n(body?.searchMaxWidth, 300),
+          searchMaxWidth:  _n(body?.searchMaxWidth,  300),
         };
         await _saveDimensions(dims);
-        return new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
       },
     },
   ],
