@@ -13,13 +13,12 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const cfg = {
-  url:                  "",
-  apiKey:               "",
-  slotEnabled:          true,
-  slotPosition:         "above-results",
-  slotLimit:            5,
-  interceptorEnabled:   false,
-  interceptorThreshold: 3,
+  url:               "",
+  apiKey:            "",
+  slotEnabled:       true,
+  slotPosition:      "above-results",
+  slotLimit:         5,
+  interceptorEnabled: false,
 };
 
 // Plugin ID injected by Degoog at runtime.
@@ -174,21 +173,6 @@ export const slot = {
       placeholder: "5",
       description: "Maximum number of Hister results displayed in the slot (1–20).",
     },
-    {
-      key:         "interceptorEnabled",
-      label:       "Suppress web results when Hister has enough",
-      type:        "toggle",
-      default:     false,
-      description: "When enabled, hides regular web results if Hister returns at least as many results as the threshold below.",
-    },
-    {
-      key:         "interceptorThreshold",
-      label:       "Suppression threshold",
-      type:        "text",
-      default:     "3",
-      placeholder: "3",
-      description: "Minimum number of Hister results needed to suppress regular web results.",
-    },
   ],
 
   configure(settings) {
@@ -196,10 +180,9 @@ export const slot = {
     cfg.apiKey               = settings.apiKey || "";
     cfg.slotEnabled          = settings.slotEnabled !== false;
     cfg.slotPosition         = settings.slotPosition || "above-results";
-    cfg.slotLimit            = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
-    cfg.interceptorEnabled   = settings.interceptorEnabled === true;
-    cfg.interceptorThreshold = Math.max(1, parseInt(settings.interceptorThreshold, 10) || 3);
-    slot.position            = cfg.slotPosition;
+    cfg.slotLimit          = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
+    cfg.interceptorEnabled = settings.interceptorEnabled === true;
+    slot.position          = cfg.slotPosition;
   },
 
   async init(ctx) {
@@ -281,21 +264,35 @@ export const slot = {
 };
 
 // ── Interceptor ───────────────────────────────────────────────────────────────
-// No name/description → Degoog won't list this as a separate installable plugin.
-// Pre-fetches Hister results and caches them so the slot execute() reuses them.
-// If results >= threshold and suppression is enabled, returns { query: null }
-// to signal Degoog to skip regular web engines for this query.
+// Runs before web engines. Pre-fetches Hister results into the shared cache so
+// the slot execute() can return immediately without a second HTTP round-trip.
+// Note: the Degoog interceptor API only allows query modification — it cannot
+// suppress or disable web engines. Web results always appear alongside the slot.
 
 export const interceptor = {
+  name:        "Hister Pre-fetch",
+  description: "Pre-fetches your Hister index in parallel with web engines so the slot panel loads from cache.",
+
+  settingsSchema: [
+    {
+      key:         "interceptorEnabled",
+      label:       "Enable pre-fetch",
+      type:        "toggle",
+      default:     false,
+      description: "Fetch Hister results before the web engines start, so the 'In your index' panel appears from cache with no extra delay.",
+    },
+  ],
+
+  configure(settings) {
+    cfg.interceptorEnabled = settings.interceptorEnabled === true;
+  },
+
   async intercept(query, context) {
     if (!_isConfigured() || !cfg.interceptorEnabled) return { query };
     try {
       const results = await _search(query, context?.fetch);
       _cache.set(query, { results, ts: Date.now() });
-      if (results.length >= cfg.interceptorThreshold) {
-        return { query: null };
-      }
-    } catch { /* on error, don't block the search */ }
+    } catch { /* don't block the search on error */ }
     return { query };
   },
 };
