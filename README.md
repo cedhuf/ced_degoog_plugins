@@ -71,13 +71,11 @@ ced_degoog_plugins/
 │   │   ├── index.js           ← server routes + !logo card UI
 │   │   ├── script.js          ← client-side wordmark/image rendering
 │   │   ├── style.css
-│   │   ├── logo.png
 │   │   ├── author.json
 │   │   └── screenshots/
 │   └── hister-slot/
 │       ├── index.js           ← slot + /test diagnostic route
 │       ├── style.css
-│       ├── logo.png
 │       ├── author.json
 │       └── screenshots/
 └── engines/
