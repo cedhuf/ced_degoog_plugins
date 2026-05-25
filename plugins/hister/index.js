@@ -2,13 +2,14 @@
 // Integrates Hister (personal full-text web history index) into Degoog search.
 //
 // Exports:
-//   • slot        — "Dans votre index" panel injected in results page
-//   • interceptor — pre-caches Hister results before the slot renders
+//   • slot        — panel "Dans votre index" injecté dans la page de résultats
+//   • interceptor — pré-charge les résultats Hister avant le rendu du slot
+//   • routes      — GET /test : diagnostique la connexion à votre instance Hister
 //
-// Requires degoog ≥ 0.17.0 (interceptor type + slotPositions API)
-// isClientExposed: false → all requests are server-side; client IP never sent
+// Requires degoog ≥ 0.17.0
+// isClientExposed: false → toutes les requêtes passent par le serveur
 
-// ── Shared config ─────────────────────────────────────────────────────────────
+// ── Config partagée ───────────────────────────────────────────────────────────
 
 const cfg = {
   url:                  "",
@@ -19,10 +20,10 @@ const cfg = {
   interceptorThreshold: 5,
 };
 
-// Result cache: interceptor populates it, slot consumes it (avoids double fetch)
+// Cache inter-module : l'intercepteur remplit, le slot consomme (évite un double appel HTTP)
 const _cache = new Map();
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function _isConfigured() {
   return Boolean(cfg.url);
@@ -36,11 +37,14 @@ function _headers() {
 
 async function _search(query, limit = 10, contextFetch) {
   const doFetch = contextFetch ?? fetch;
-  const url = `${cfg.url}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`;
-  const res = await doFetch(url, { headers: _headers() });
+  const res = await doFetch(
+    `${cfg.url}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    { headers: _headers() },
+  );
   if (!res.ok) throw new Error(`Hister HTTP ${res.status}`);
   const data = await res.json();
-  return Array.isArray(data) ? data : (data.results ?? []);
+  // Hister peut retourner un tableau direct ou { results: [] }
+  return Array.isArray(data) ? data : (data.results ?? data.hits ?? data.items ?? []);
 }
 
 function _esc(s) {
@@ -52,31 +56,39 @@ function _esc(s) {
 }
 
 function _renderResult(r) {
-  const title   = r.title   || r.url   || "Untitled";
+  const title   = r.title   || r.url   || "Sans titre";
   const url     = r.url     || "#";
-  const snippet = r.snippet || (r.content ? r.content.slice(0, 180) : "");
-  const date    = r.date
-    ? `<span class="hister-date">${new Date(r.date).toLocaleDateString()}</span>`
+  const snippet = r.snippet || r.excerpt || (r.content ? r.content.slice(0, 180) : "");
+  const date    = r.date || r.visited_at || r.timestamp;
+  const dateHtml = date
+    ? `<span class="hister-date">${new Date(date).toLocaleDateString("fr-FR")}</span>`
     : "";
   return `
     <div class="hister-result">
-      <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>${date}
+      <a class="hister-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${_esc(title)}</a>${dateHtml}
       <div class="hister-result-url">${_esc(url)}</div>
       ${snippet ? `<div class="hister-result-snippet">${_esc(snippet)}</div>` : ""}
     </div>`;
 }
 
-// ── Shared settings ───────────────────────────────────────────────────────────
-// settingsId "hister" is shared by both exports so Degoog stores a single copy.
+// ── Paramètres ────────────────────────────────────────────────────────────────
+
+// Labels français → identifiants de position Degoog
+const POSITIONS = {
+  "Au-dessus des résultats": "above-results",
+  "Sous les résultats":      "below-results",
+  "Panneau latéral":         "knowledge-panel",
+  "Haut de la barre latérale": "above-sidebar",
+};
 
 const settingsSchema = [
   {
     key:         "url",
-    label:       "URL Hister",
+    label:       "URL de l'instance Hister",
     type:        "url",
     required:    true,
     placeholder: "http://hister:8080",
-    description: "URL de base de votre instance Hister (sans slash final).",
+    description: "URL de base de votre instance Hister, sans slash final. Pour tester la connexion : ouvrez /api/plugin/hister-slot/test dans votre navigateur.",
   },
   {
     key:         "apiKey",
@@ -84,49 +96,53 @@ const settingsSchema = [
     type:        "password",
     required:    false,
     placeholder: "(optionnel)",
-    description: "API key Hister si l'instance est protégée (Settings → General → API key dans Hister).",
+    description: "Clé API si votre instance Hister est protégée (Paramètres → Général → Clé API dans Hister).",
     secret:      true,
   },
   {
     key:         "slotEnabled",
-    label:       "Slot « Dans votre index »",
+    label:       "Afficher le panel « Dans votre index »",
     type:        "toggle",
     default:     true,
-    description: "Affiche un panel de résultats Hister dans la page de résultats Degoog.",
+    description: "Affiche vos pages déjà visitées dans les résultats de recherche Degoog.",
   },
   {
     key:         "slotPosition",
-    label:       "Position du slot",
+    label:       "Position du panel",
     type:        "select",
-    options:     ["above-results", "below-results", "knowledge-panel", "above-sidebar"],
-    default:     "above-results",
+    options:     Object.keys(POSITIONS),
+    default:     "Au-dessus des résultats",
     description: "Emplacement du panel Hister dans la page de résultats.",
   },
   {
     key:         "interceptorEnabled",
-    label:       "Intercepteur (pré-chargement)",
+    label:       "Activer le pré-chargement",
     type:        "toggle",
     default:     false,
-    description: "Pré-charge les résultats Hister avant le rendu du slot pour éviter une double requête HTTP.",
+    description: "Pré-charge les résultats Hister avant le rendu du panel pour éviter une double requête HTTP.",
   },
   {
     key:         "interceptorThreshold",
-    label:       "Seuil de l'intercepteur",
+    label:       "Nombre de résultats à pré-charger",
     type:        "text",
     default:     "5",
     placeholder: "5",
-    description: "Nombre de résultats pré-chargés par l'intercepteur.",
+    description: "Combien de résultats pré-charger (entre 1 et 20).",
   },
 ];
 
 function configure(settings) {
-  cfg.url                  = (settings.url || "").replace(/\/$/, "");
-  cfg.apiKey               = settings.apiKey               || "";
-  cfg.slotEnabled          = settings.slotEnabled          !== false;
-  cfg.slotPosition         = settings.slotPosition         || "above-results";
-  cfg.interceptorEnabled   = settings.interceptorEnabled   === true;
+  cfg.url    = (settings.url || "").replace(/\/$/, "");
+  cfg.apiKey = settings.apiKey || "";
+  cfg.slotEnabled = settings.slotEnabled !== false;
+
+  const posLabel = settings.slotPosition || "Au-dessus des résultats";
+  cfg.slotPosition = POSITIONS[posLabel] ?? "above-results";
+
+  cfg.interceptorEnabled   = settings.interceptorEnabled === true;
   cfg.interceptorThreshold = Math.max(1, parseInt(settings.interceptorThreshold, 10) || 5);
-  // keep slot.position in sync so Degoog picks up the user's preference
+
+  // Synchronise la propriété lue par Degoog pour positionner le slot
   slot.position = cfg.slotPosition;
 }
 
@@ -137,7 +153,6 @@ export const slot = {
   name:        "Hister",
   description: "Affiche les pages de votre historique personnel dans les résultats Degoog.",
   position:    "above-results",
-  slotPositions: ["above-results", "below-results", "knowledge-panel", "above-sidebar"],
   isClientExposed: false,
   settingsId:  "hister",
   settingsSchema,
@@ -148,7 +163,7 @@ export const slot = {
   },
 
   async execute(query, context) {
-    // Use pre-cached results from the interceptor when available
+    // Utilise les résultats pré-chargés par l'intercepteur si disponibles
     let results = _cache.get(query);
     if (results) {
       _cache.delete(query);
@@ -190,14 +205,14 @@ export const slot = {
   },
 };
 
-// ── Interceptor ───────────────────────────────────────────────────────────────
-// Degoog interceptors can only modify the query string — they cannot suppress
-// other search engines. This interceptor pre-fetches Hister results so the slot
-// can render without a second HTTP round-trip.
+// ── Intercepteur ──────────────────────────────────────────────────────────────
+// L'API Degoog ne permet pas à un intercepteur de supprimer d'autres moteurs —
+// il peut uniquement modifier la requête. Ici on s'en sert pour pré-charger
+// les résultats Hister avant que le slot les demande.
 
 export const interceptor = {
   name:        "Hister — Pré-chargement",
-  description: "Pré-charge les résultats Hister avant le slot pour éviter une double requête HTTP.",
+  description: "Pré-charge les résultats Hister avant le rendu du panel pour éviter une double requête HTTP.",
   isClientExposed: false,
   configure,
 
@@ -210,10 +225,52 @@ export const interceptor = {
       const results = await _search(query, cfg.interceptorThreshold, context?.fetch);
       if (results.length) _cache.set(query, results);
     } catch (_) {
-      // Never block a search due to Hister being unavailable
+      // Ne jamais bloquer une recherche si Hister est indisponible
     }
     return { query };
   },
 };
+
+// ── Route de diagnostic ───────────────────────────────────────────────────────
+// Accessible via : GET /api/plugin/hister-slot/test
+// Retourne la réponse brute de l'API Hister pour vérifier l'endpoint et le format.
+
+export const routes = [
+  {
+    method: "get",
+    path:   "/test",
+    async handler(_req) {
+      if (!cfg.url) {
+        return Response.json({
+          ok:     false,
+          erreur: "URL non configurée — sauvegardez vos paramètres d'abord.",
+        });
+      }
+      const endpoint = `${cfg.url}/api/search?q=test&limit=3`;
+      try {
+        const res  = await fetch(endpoint, { headers: _headers() });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = text; }
+        return Response.json({
+          ok:        res.ok,
+          statut:    res.status,
+          endpoint,
+          réponse:  data,
+          conseil:   res.ok
+            ? "Connexion OK. Si le slot ne s'affiche pas, vérifiez que le champ 'url' est sauvegardé et que le toggle est activé."
+            : `Erreur HTTP ${res.status} — vérifiez l'URL et la clé API.`,
+        });
+      } catch (err) {
+        return Response.json({
+          ok:       false,
+          erreur:   String(err),
+          endpoint,
+          conseil:  "Vérifiez que l'instance Hister est démarrée et accessible depuis le serveur Degoog.",
+        });
+      }
+    },
+  },
+];
 
 export default { slot, interceptor };
