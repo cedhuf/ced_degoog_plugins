@@ -400,6 +400,30 @@
     _wireSlider(searchHSlider, "lt-search-h-val");
     _wireSlider(searchWSlider, "lt-search-w-val");
 
+    const resetDimsBtn = root.querySelector("#logotype-reset-dims");
+    if (resetDimsBtn) {
+      resetDimsBtn.addEventListener("click", async () => {
+        const defaults = { homeMaxHeight: 300, homeMaxWidth: 500, searchMaxHeight: 100, searchMaxWidth: 300 };
+        if (homeHSlider)   { homeHSlider.value   = "300"; const l = root.querySelector("#lt-home-h-val");   if (l) l.textContent = "300px"; }
+        if (homeWSlider)   { homeWSlider.value   = "500"; const l = root.querySelector("#lt-home-w-val");   if (l) l.textContent = "500px"; }
+        if (searchHSlider) { searchHSlider.value = "100"; const l = root.querySelector("#lt-search-h-val"); if (l) l.textContent = "100px"; }
+        if (searchWSlider) { searchWSlider.value = "300"; const l = root.querySelector("#lt-search-w-val"); if (l) l.textContent = "300px"; }
+        try {
+          const res = await fetch("/api/plugin/logotype/dimensions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(defaults),
+          });
+          if (!res.ok) { _setStatus(root, "Reset failed.", false); return; }
+          _homeMaxHeight = 300; _homeMaxWidth = 500; _searchMaxHeight = 100; _searchMaxWidth = 300;
+          _dimensionsLoaded = true;
+          _setStatus(root, "Dimensions reset to defaults.", true);
+        } catch {
+          _setStatus(root, "Reset failed.", false);
+        }
+      });
+    }
+
     if (saveDimsBtn) {
       saveDimsBtn.addEventListener("click", async () => {
         const dims = {

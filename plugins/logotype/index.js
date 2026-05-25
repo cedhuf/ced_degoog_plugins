@@ -211,7 +211,10 @@ export default {
               ${sliderRow("lt-home-w",   "Home width",    50, 1200, homeMaxWidth)}
               ${sliderRow("lt-search-h", "Search height", 20, 300,  searchMaxHeight)}
               ${sliderRow("lt-search-w", "Search width",  50, 600,  searchMaxWidth)}
-              <button id="logotype-save-dims" class="lt-btn">Save dimensions</button>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button id="logotype-save-dims" class="lt-btn">Save dimensions</button>
+                <button id="logotype-reset-dims" class="lt-btn lt-btn-ghost" title="Reset to defaults: 300×500 / 100×300">Reset to defaults</button>
+              </div>
             </div>
           </div>
 
