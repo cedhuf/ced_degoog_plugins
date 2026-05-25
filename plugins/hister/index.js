@@ -35,7 +35,10 @@ function _isConfigured() {
 
 function _headers(extra = {}) {
   const h = { Accept: "application/json", ...extra };
-  if (cfg.apiKey) h["Authorization"] = `Bearer ${cfg.apiKey}`;
+  if (cfg.apiKey) {
+    h["Authorization"]  = `Bearer ${cfg.apiKey}`;
+    h["X-Access-Token"] = cfg.apiKey; // Hister checks this header before Bearer
+  }
   return h;
 }
 
@@ -53,8 +56,8 @@ async function _search(query, contextFetch) {
     let hint = "";
     if (res.status === 500) {
       hint = cfg.apiKey
-        ? "\n→ API key is set but the server still 500s. Check the token is valid: Hister → Profile → API token."
-        : "\n→ No API key configured. Go to Hister → Profile → copy the API token, then set it in Degoog → Settings → Plugins → Hister → API Key.";
+        ? `\n→ API key received (${cfg.apiKey.length} chars). Server still 500s — make sure the token matches Hister's app-level Access Token (Hister → Settings → Access token), NOT a user password or session token.`
+        : "\n→ No API key configured. Set the Hister Access Token in Degoog → Settings → Plugins → Hister → API Key.";
     }
     throw new Error(
       `HTTP ${res.status} from ${url}` +
