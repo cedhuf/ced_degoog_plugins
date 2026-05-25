@@ -4,7 +4,7 @@ Integrates [Hister](https://github.com/asciimoo/hister) — your personal full-t
 
 When you search, a **"In your index"** panel appears alongside regular results, showing pages you have previously visited that match your query. Click any result to open the page, or **View all →** to open your full Hister search.
 
-![Hister Slot screenshot](screenshot.png)
+![Hister Slot screenshot](screenshots/screenshot.png)
 
 ## Requirements
 

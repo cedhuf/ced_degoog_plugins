@@ -4,7 +4,7 @@ Registers [Hister](https://github.com/asciimoo/hister) — your personal full-te
 
 Results from your Hister index appear in a **dedicated tab** alongside Web, Images, and other engines. You can also trigger it directly from the search bar using the **`!hister`** bang shortcut.
 
-![Hister Engine screenshot](screenshot.png)
+![Hister Engine screenshot](screenshots/screenshot.png)
 
 ## Requirements
 
