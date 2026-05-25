@@ -1,8 +1,8 @@
 // Hister plugin for Degoog
 // Integrates Hister (personal full-text web history index) into Degoog search.
 //
-// Single export: slot — "In your index" panel injected into the results page.
-// No interceptor export (it would register as a second separate plugin).
+// Exports: slot ("In your index" panel) + interceptor (optional web-result suppression).
+// The interceptor has no name/description so Degoog doesn't list it as a second plugin.
 //
 // Hister search API: GET /search?q=<query>
 // Hister SPA URL:    /?q=<query>  (used for "View all" links)
@@ -13,10 +13,13 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const cfg = {
-  url:          "",
-  apiKey:       "",
-  slotEnabled:  true,
-  slotPosition: "above-results",
+  url:                  "",
+  apiKey:               "",
+  slotEnabled:          true,
+  slotPosition:         "above-results",
+  slotLimit:            5,
+  interceptorEnabled:   false,
+  interceptorThreshold: 3,
 };
 
 // Plugin ID injected by Degoog at runtime.
@@ -26,6 +29,10 @@ const _pluginId =
 
 // logo.png encoded as data-URL, loaded once in init()
 let _logoDataUrl = "";
+
+// Short-lived cache shared between interceptor and slot to avoid double-fetching
+const _cache   = new Map(); // query → { results, ts }
+const CACHE_TTL = 30_000;   // ms
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -159,14 +166,40 @@ export const slot = {
       default:     "above-results",
       description: "Where to display the Hister panel on the results page.",
     },
+    {
+      key:         "slotLimit",
+      label:       "Results to show in panel",
+      type:        "text",
+      default:     "5",
+      placeholder: "5",
+      description: "Maximum number of Hister results displayed in the slot (1–20).",
+    },
+    {
+      key:         "interceptorEnabled",
+      label:       "Suppress web results when Hister has enough",
+      type:        "toggle",
+      default:     false,
+      description: "When enabled, hides regular web results if Hister returns at least as many results as the threshold below.",
+    },
+    {
+      key:         "interceptorThreshold",
+      label:       "Suppression threshold",
+      type:        "text",
+      default:     "3",
+      placeholder: "3",
+      description: "Minimum number of Hister results needed to suppress regular web results.",
+    },
   ],
 
   configure(settings) {
-    cfg.url          = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey       = settings.apiKey || "";
-    cfg.slotEnabled  = settings.slotEnabled !== false;
-    cfg.slotPosition = settings.slotPosition || "above-results";
-    slot.position    = cfg.slotPosition;
+    cfg.url                  = (settings.url || "").replace(/\/$/, "");
+    cfg.apiKey               = settings.apiKey || "";
+    cfg.slotEnabled          = settings.slotEnabled !== false;
+    cfg.slotPosition         = settings.slotPosition || "above-results";
+    cfg.slotLimit            = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
+    cfg.interceptorEnabled   = settings.interceptorEnabled === true;
+    cfg.interceptorThreshold = Math.max(1, parseInt(settings.interceptorThreshold, 10) || 3);
+    slot.position            = cfg.slotPosition;
   },
 
   async init(ctx) {
@@ -195,7 +228,13 @@ export const slot = {
   async execute(query, context) {
     let results;
     try {
-      results = await _search(query, context?.fetch);
+      const hit = _cache.get(query);
+      if (hit && Date.now() - hit.ts < CACHE_TTL) {
+        results = hit.results;
+      } else {
+        results = await _search(query, context?.fetch);
+        _cache.set(query, { results, ts: Date.now() });
+      }
     } catch (err) {
       return {
         title: "Hister",
@@ -207,8 +246,7 @@ export const slot = {
       };
     }
 
-    // Hister returns all results — cap display at 5
-    const displayed = results.slice(0, 5);
+    const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
     // "View all" → Hister SPA URL (/?q=..., not /search?q=...)
@@ -239,6 +277,26 @@ export const slot = {
           <div class="hister-results">${items}</div>
         </div>`,
     };
+  },
+};
+
+// ── Interceptor ───────────────────────────────────────────────────────────────
+// No name/description → Degoog won't list this as a separate installable plugin.
+// Pre-fetches Hister results and caches them so the slot execute() reuses them.
+// If results >= threshold and suppression is enabled, returns { query: null }
+// to signal Degoog to skip regular web engines for this query.
+
+export const interceptor = {
+  async intercept(query, context) {
+    if (!_isConfigured() || !cfg.interceptorEnabled) return { query };
+    try {
+      const results = await _search(query, context?.fetch);
+      _cache.set(query, { results, ts: Date.now() });
+      if (results.length >= cfg.interceptorThreshold) {
+        return { query: null };
+      }
+    } catch { /* on error, don't block the search */ }
+    return { query };
   },
 };
 
