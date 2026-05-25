@@ -1,11 +1,16 @@
 // Hister Slot plugin for Degoog
 // Shows pages from your personal Hister history index alongside search results.
+// Optionally activates "Hister First" mode via an interceptor: when enough
+// history results are found, the query is prefixed with "hister:" which should
+// route the search exclusively to the Hister engine, skipping other engines.
 //
 // Hister search API: GET /search?query=<JSON>
 // Hister SPA URL:    /?q=<query>  (used for "View all" links)
 //
 // Requires Degoog ≥ 0.17.0
 // isClientExposed: false → all requests go through the Degoog server
+
+import { basename } from "node:path";
 
 const cfg = {
   url:          "",
@@ -16,6 +21,15 @@ const cfg = {
   slotStyle:    "inline",
   slotDetail:   "title",
 };
+
+let _histerFirstEnabled   = false;
+let _histerFirstThreshold = 10;
+let _folderName           = "hister-slot";
+
+// Shared cache: interceptor pre-fetches, slot serves from cache (no double fetch)
+const _prefetchCache = new Map(); // q → { results, ts, activated }
+const _skipOnce      = new Set(); // queries to let through normally once
+const PREFETCH_TTL   = 30_000;   // 30 s
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,11 +46,22 @@ function _headers() {
   return h;
 }
 
-async function _search(query, contextFetch) {
+function _getCached(q) {
+  const e = _prefetchCache.get(q);
+  if (!e || Date.now() - e.ts > PREFETCH_TTL) { _prefetchCache.delete(q); return null; }
+  return e;
+}
+
+// Strip the "hister:" prefix the interceptor may have injected into the query.
+function _cleanQuery(q) {
+  return q.replace(/^hister:/i, "").trim() || q;
+}
+
+async function _search(query, contextFetch, limit) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
-  // The `query` param accepts a JSON-encoded Query struct — the only way to
-  // enable include_text (IncludeText is not parsed from plain URL params).
-  const q = encodeURIComponent(JSON.stringify({ text: query, include_text: true }));
+  const qObj = { text: query, include_text: true };
+  if (limit) qObj.limit = limit;
+  const q = encodeURIComponent(JSON.stringify(qObj));
   const res = await doFetch(
     `${cfg.url}/search?query=${q}`,
     { headers: _headers() },
@@ -51,12 +76,8 @@ async function _search(query, contextFetch) {
     throw new Error(`Hister returned HTTP ${res.status}. Check the URL in Settings → Plugins → Hister Slot.`);
   }
   let data;
-  try {
-    data = JSON.parse(await res.text());
-  } catch {
-    throw new Error("Hister returned an unexpected response. Make sure the URL points to your Hister instance.");
-  }
-  // Hister returns { documents: [...] } with Go PascalCase fallbacks
+  try { data = JSON.parse(await res.text()); }
+  catch { throw new Error("Hister returned an unexpected response."); }
   const raw =
     data.Documents ?? data.documents ??
     data.results   ?? data.hits      ?? data.items ??
@@ -64,8 +85,6 @@ async function _search(query, contextFetch) {
   return _dedupe(Array.isArray(raw) ? raw : []);
 }
 
-// Deduplicate by base URL (strip query string) and by title.
-// Hister indexes multiple visits to the same page with slightly different URLs.
 function _dedupe(results) {
   const seenUrls   = new Set();
   const seenTitles = new Set();
@@ -73,8 +92,7 @@ function _dedupe(results) {
     const rawUrl = r.URL || r.url || "";
     const base   = rawUrl.split("?")[0].toLowerCase();
     const title  = (r.Title || r.title || "").toLowerCase().trim();
-    if ((base  && seenUrls.has(base))  ||
-        (title && seenTitles.has(title))) return false;
+    if ((base && seenUrls.has(base)) || (title && seenTitles.has(title))) return false;
     if (base)  seenUrls.add(base);
     if (title) seenTitles.add(title);
     return true;
@@ -83,18 +101,14 @@ function _dedupe(results) {
 
 function _esc(s) {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function _renderResult(r) {
   const title   = r.Title   || r.title   || r.URL    || r.url    || "Untitled";
   const url     = r.URL     || r.url     || "#";
-  // text field: Hister may populate it with highlight fragments when the query
-  // term appears in the indexed content (depends on Bleve scoring).
-  const content = r.Content || r.content || r.Body || r.body || r.text || r.Text || "";
+  const content = r.Content || r.content || r.Body   || r.body   || r.text || r.Text || "";
   const snippet = r.Snippet || r.snippet || r.Excerpt || r.excerpt || content.slice(0, 200);
   return `
     <div class="hister-result">
@@ -103,6 +117,54 @@ function _renderResult(r) {
       ${snippet ? `<div class="hister-result-snippet">${_esc(snippet)}</div>` : ""}
     </div>`;
 }
+
+// ── Interceptor ───────────────────────────────────────────────────────────────
+// Hister First: pre-fetches Hister for every query. When result count meets
+// the threshold, returns { query: "hister:<q>" } which should route the search
+// exclusively to the Hister engine (engines with export const type = "hister").
+
+export const interceptor = {
+  isClientExposed: false,
+  name:            "Hister First",
+  description:     "Skips other search engines when your Hister history has enough results.",
+
+  init(ctx) {
+    _folderName = basename(ctx.dir);
+  },
+
+  async intercept(query, context) {
+    const q = query.trim();
+
+    // Skip: already prefixed, bang command, not configured, feature disabled
+    if (!q || /^hister:/i.test(q) || /^!/.test(q) || !_isConfigured() || !_histerFirstEnabled) {
+      return { query };
+    }
+
+    // User clicked "Search all engines →" — skip Hister First once
+    if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
+
+    // Serve from cache if still fresh
+    const cached = _getCached(q);
+    if (cached) {
+      return cached.activated ? { query: `hister:${q}` } : { query };
+    }
+
+    // Pre-fetch Hister to evaluate the threshold
+    let results;
+    try {
+      results = await _search(q, context?.fetch, _histerFirstThreshold + 5);
+    } catch {
+      return { query }; // Hister unreachable → fall through to normal search
+    }
+
+    const activated = results.length >= _histerFirstThreshold;
+    _prefetchCache.set(q, { results, ts: Date.now(), activated });
+
+    // When threshold is met, prefix with engine type so Degoog routes exclusively
+    // to engines with export const type = "hister" (i.e. the Hister Engine).
+    return activated ? { query: `hister:${q}` } : { query };
+  },
+};
 
 // ── Slot ──────────────────────────────────────────────────────────────────────
 
@@ -152,7 +214,7 @@ export const slot = {
       type:        "select",
       options:     ["inline", "card"],
       default:     "inline",
-      description: "inline — blends with native results, subtle framing · card — compact bordered panel",
+      description: "inline — blends with native results · card — compact bordered panel",
     },
     {
       key:         "slotDetail",
@@ -170,6 +232,22 @@ export const slot = {
       placeholder: "5",
       description: "Maximum number of Hister results displayed in the panel (1–20).",
     },
+    // ── Hister First ──────────────────────────────────────────────────────────
+    {
+      key:         "histerFirst",
+      label:       "Hister First mode",
+      type:        "toggle",
+      default:     false,
+      description: "When your history has enough results, skip other search engines entirely. Requires the Hister Engine to also be installed.",
+    },
+    {
+      key:         "histerFirstThreshold",
+      label:       "Minimum results to activate",
+      type:        "text",
+      default:     "10",
+      placeholder: "10",
+      description: "Minimum number of Hister results needed to skip other engines (1–50).",
+    },
   ],
 
   configure(settings) {
@@ -181,6 +259,13 @@ export const slot = {
     cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail) ? settings.slotDetail : "title";
     cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
     slot.position    = cfg.slotPosition;
+
+    _histerFirstEnabled   = settings.histerFirst === true;
+    _histerFirstThreshold = Math.max(1, Math.min(50, parseInt(settings.histerFirstThreshold || "10", 10)));
+  },
+
+  init(ctx) {
+    _folderName = basename(ctx.dir);
   },
 
   trigger(_query) {
@@ -188,39 +273,58 @@ export const slot = {
   },
 
   async execute(query, context) {
+    // Strip "hister:" prefix the interceptor may have injected
+    const q = _cleanQuery(query);
+
+    // Use pre-fetched cache when available — no double Hister round-trip
+    const cached = _getCached(q);
     let results;
-    try {
-      results = await _search(query, context?.fetch);
-    } catch (err) {
-      return {
-        html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
-      };
+    if (cached) {
+      results = cached.results;
+    } else {
+      try {
+        results = await _search(q, context?.fetch);
+      } catch (err) {
+        return { html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>` };
+      }
     }
 
     const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    const viewAll = `${cfg.url}/?q=${encodeURIComponent(query)}`;
-    const items   = displayed.map(_renderResult).join("");
-    const footer  = `
+    const histerFirst = cached?.activated ?? false;
+    const total       = results.length;
+    const viewAll     = `${cfg.url}/?q=${encodeURIComponent(q)}`;
+    const skipUrl     = `/api/plugin/${_folderName}/skip?q=${encodeURIComponent(q)}`;
+    const items       = displayed.map(_renderResult).join("");
+    const detail      = `hister-detail-${cfg.slotDetail}`;
+
+    // Banner shown when Hister First routed this search exclusively to Hister
+    const banner = histerFirst ? `
+      <div class="hister-first-banner">
+        <span class="hister-first-info">${total} result${total !== 1 ? "s" : ""} from your history — other engines skipped</span>
+        <a class="hister-first-all" href="${_esc(skipUrl)}">Search all engines →</a>
+      </div>` : "";
+
+    const footer = `
       <div class="hister-footer">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-footer-label">Hister</span>
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
-    const header  = `
+
+    const header = `
       <div class="hister-slot-header">
         <span class="hister-dot" aria-hidden="true">●</span>
         <span class="hister-slot-label">Hister</span>
         <a class="hister-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
       </div>`;
 
-    const detail = `hister-detail-${cfg.slotDetail}`;
-
     if (cfg.slotStyle === "inline") {
       return {
         html: `
           <div class="hister-slot hister-inline ${detail}">
+            ${banner}
             <div class="hister-results">${items}</div>
             ${footer}
           </div>`,
@@ -231,10 +335,39 @@ export const slot = {
       html: `
         <div class="hister-slot hister-card ${detail}">
           ${header}
+          ${banner}
           <div class="hister-results">${items}</div>
         </div>`,
     };
   },
 };
 
-export default { slot };
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+export const routes = [
+  {
+    // GET /api/plugin/hister-slot/skip?q=<query>
+    // Marks the query as skip-once so the interceptor won't activate on the
+    // next search, then redirects to a normal Degoog search (all engines).
+    method: "get",
+    path:   "/skip",
+    handler(req) {
+      try {
+        const url = new URL(req.url);
+        const q   = url.searchParams.get("q") || "";
+        if (q) {
+          _skipOnce.add(q);
+          setTimeout(() => _skipOnce.delete(q), 60_000);
+        }
+        return new Response(null, {
+          status:  302,
+          headers: { Location: `/search?q=${encodeURIComponent(q)}` },
+        });
+      } catch {
+        return new Response(null, { status: 302, headers: { Location: "/" } });
+      }
+    },
+  },
+];
+
+export default { slot, interceptor };

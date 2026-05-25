@@ -8,7 +8,7 @@
       "path": "plugins/hister-slot",
       "name": "Hister Slot",
       "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "type": "slot",
       "screenshots": ["screenshots/screenshot.png"]
     },
@@ -25,7 +25,7 @@
       "path": "engines/hister-engine",
       "name": "Hister Engine",
       "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "screenshots": ["screenshots/screenshot.png"]
     }
   ],
