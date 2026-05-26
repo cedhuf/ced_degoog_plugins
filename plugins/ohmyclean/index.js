@@ -1,19 +1,19 @@
-// Snip — cosmetic plugin for Degoog
-// Selectively hides or replaces UI elements on the home page.
+// OhMyClean — cosmetic plugin for Degoog
+// Selectively hides or replaces UI elements across all pages.
 //
 // Strategy:
-//   • execute() injects a <style> block into the search-results DOM.
-//     (<style> via innerHTML works; <script> does not.)
-//   • script.js injects the same <style> into <head> on every page,
-//     covering the home page and any client-side navigation.
-//   • /config route serves current settings as JSON for script.js.
+//   • script.js fetches /config and injects a <style> into <head> on every
+//     page (home, results, settings) — Degoog loads script.js globally.
+//   • /config route serves current settings + pre-built CSS for script.js.
+//   • trigger() returns false — no slot panel ever rendered.
 //
 // Confirmed selectors from degoog-org/degoog source (index-templates/):
-//   .home-footer-bottom  — home page footer
-//   #nav-settings-top    — top-right settings gear icon
-//   .button-row          — row with search + lucky buttons
-//   #btn-lucky           — "I'm Feeling Lucky" button
-//   #search-bar-home     — search bar wrapper (arrow injected here)
+//   .home-footer-bottom   — home page footer
+//   #nav-settings-top     — home page settings gear (top-right)
+//   #nav-settings-results — results page settings gear (top-right)
+//   .button-row           — row with search + lucky buttons (home page)
+//   #btn-lucky            — "I'm Feeling Lucky" button
+//   #search-bar-home      — search bar wrapper (arrow injected here)
 
 const cfg = {
   hideFooter:      false,
@@ -27,8 +27,11 @@ function _buildRules() {
   const rules = [];
   if (cfg.hideFooter)
     rules.push(".home-footer-bottom { display: none !important; }");
-  if (cfg.hideNavSettings)
+  if (cfg.hideNavSettings) {
+    // Two different IDs: home page vs results page
     rules.push("#nav-settings-top { display: none !important; }");
+    rules.push("#nav-settings-results { display: none !important; }");
+  }
   if (cfg.buttons === "hide-lucky")
     rules.push("#btn-lucky { display: none !important; }");
   if (cfg.buttons === "arrow")
@@ -39,9 +42,9 @@ function _buildRules() {
 // ── Slot ──────────────────────────────────────────────────────────────────────
 
 export const slot = {
-  id:          "snip",
-  name:        "Snip",
-  description: "Selectively hide or replace Degoog home page elements — footer, settings icon, search buttons.",
+  id:          "ohmyclean",
+  name:        "OhMyClean",
+  description: "Selectively hide or replace Degoog UI elements — footer, settings gear, search buttons.",
   position:    "above-results",
   isClientExposed: false,
 
@@ -58,7 +61,9 @@ export const slot = {
       label:       "Hide settings gear icon",
       type:        "toggle",
       default:     false,
-      description: "Hides the ⚙ icon in the top-right corner of the home page.",
+      description:
+        "Hides the ⚙ gear icon on both the home page and results pages. " +
+        "Settings remain accessible at /settings.",
     },
     {
       key:     "buttons",
@@ -83,7 +88,7 @@ export const slot = {
 
   // style.css and script.js are loaded globally by Degoog on every page
   // (home, results, settings) regardless of trigger(). This slot never
-  // needs to render HTML — all work is done by style.css + script.js.
+  // renders HTML — all work is done by script.js injecting <style> into <head>.
   trigger() { return false; },
   async execute() { return { html: "" }; },
 };
@@ -93,7 +98,7 @@ export const slot = {
 export const routes = [
   {
     // GET /api/plugin/.../config
-    // Returns current settings as JSON for script.js to consume.
+    // Returns current settings + pre-built CSS for script.js.
     // Non-sensitive (UI prefs only) — intentionally unauthenticated.
     method: "get",
     path: "/config",
@@ -103,7 +108,7 @@ export const routes = [
           hideFooter:      cfg.hideFooter,
           hideNavSettings: cfg.hideNavSettings,
           buttons:         cfg.buttons,
-          css:             _buildRules(), // pre-built for script.js convenience
+          css:             _buildRules(),
         }),
         { headers: { "Content-Type": "application/json" } },
       );

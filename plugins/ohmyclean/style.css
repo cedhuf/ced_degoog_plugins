@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Snip — style.css
+   OhMyClean — style.css
    Only contains the arrow button styles. All hiding rules are injected
-   dynamically by execute() and script.js based on user settings.
+   dynamically by script.js into <head> based on user settings.
 ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Arrow submit button (injected inside #search-bar-home by script.js) ──── */
 
-#snip-arrow-btn {
+#omc-arrow-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,11 +19,11 @@
   flex-shrink: 0;
 }
 
-#snip-arrow-btn:hover {
+#omc-arrow-btn:hover {
   color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
   transform: translateX(2px);
 }
 
-#snip-arrow-btn svg {
+#omc-arrow-btn svg {
   display: block;
 }

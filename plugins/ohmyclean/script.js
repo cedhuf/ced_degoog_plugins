@@ -1,9 +1,9 @@
-// Snip — client-side style injector.
+// OhMyClean — client-side style injector.
 //
 // Degoog replaces __PLUGIN_ID__ in this file before serving it, so we can
 // build the correct /api/plugin/<id>/config URL without any URL-sniffing.
 //
-// Loaded on every page (home, results, settings) — see Degoog layout.html.
+// Loaded on every page (home, results, settings) via Degoog's global layout.
 // sessionStorage cache → zero flash-of-unstyled-content on repeat loads.
 
 (function () {
@@ -12,9 +12,9 @@
   // Degoog substitutes the real plugin ID here at serve time.
   var CONFIG_URL = "/api/plugin/__PLUGIN_ID__/config";
 
-  var STYLE_ID  = "snip-style-head";
-  var ARROW_ID  = "snip-arrow-btn";
-  var CACHE_KEY = "snip-cfg";
+  var STYLE_ID  = "omc-style-head";
+  var ARROW_ID  = "omc-arrow-btn";
+  var CACHE_KEY = "omc-cfg";
 
   // ── Apply a config object ──────────────────────────────────────────────────
 
