@@ -21,6 +21,14 @@
       "screenshots": ["screenshots/screenshot.png"]
     },
     {
+      "path": "plugins/snip",
+      "name": "Snip",
+      "description": "Selectively hide or replace Degoog home page elements — footer, settings icon, search buttons. Swap the button row for a minimal arrow, or just clean up what you don't use.",
+      "version": "1.0.0",
+      "type": "slot",
+      "screenshots": []
+    },
+    {
       "path": "plugins/logotype",
       "name": "Logotype",
       "description": "Replace the Degoog logo with a custom text wordmark or your own image. Style your brand with font, color, and decorator options — all with a live preview. Manage via `!logo`.",
@@ -35,6 +43,13 @@
       "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
       "version": "1.5.0",
       "screenshots": ["screenshots/screenshot.png"]
+    },
+    {
+      "path": "engines/karakeep-engine",
+      "name": "Karakeep Engine",
+      "description": "Native Karakeep bookmark search engine — search your personal bookmarks via the `!karakeep` bang shortcut.",
+      "version": "1.0.0",
+      "screenshots": []
     }
   ],
   "themes": [],

@@ -1,0 +1,53 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Snip — style.css
+   CSS classes applied to <html> by script.js based on user settings.
+   Selectors verified against degoog-org/degoog source (index-templates/).
+───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Hide home footer ────────────────────────────────────────────────────── */
+
+.snip-hide-footer .home-footer-bottom {
+  display: none !important;
+}
+
+/* ── Hide settings gear icon ─────────────────────────────────────────────── */
+
+.snip-hide-nav #nav-settings-top {
+  display: none !important;
+}
+
+/* ── Hide "I'm Feeling Lucky" button only ────────────────────────────────── */
+
+.snip-hide-lucky #btn-lucky {
+  display: none !important;
+}
+
+/* ── Arrow mode: hide the whole button row ───────────────────────────────── */
+
+.snip-arrow-mode .button-row {
+  display: none !important;
+}
+
+/* ── Arrow button (injected inside #search-bar-home by script.js) ─────────── */
+
+#snip-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 10px;
+  color: var(--degoog-text-muted, #9aa0a6);
+  transition: color 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+#snip-arrow-btn:hover {
+  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
+  transform: translateX(2px);
+}
+
+#snip-arrow-btn svg {
+  display: block;
+}
