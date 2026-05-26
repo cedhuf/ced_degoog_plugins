@@ -11,6 +11,7 @@
 //
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
+import { basename } from "node:path";
 
 // Custom type → dedicated "Karakeep" settings section + dedicated tab.
 // (Matches the Hister engine pattern — same as type = "hister" for Hister Engine.)
@@ -20,11 +21,6 @@ export const type = "karakeep";
 // Registers a "Karakeep" tab in the Degoog results UI.
 // engineType must match export const type above.
 // On/off: use the engine toggle in Settings → Engines → Karakeep Engine.
-
-export const tab = {
-  name: "Karakeep",
-  engineType: "web",
-};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +62,15 @@ function _getSnippet(b) {
     ""
   ).slice(0, 300);
 }
+
+// ── Tab ───────────────────────────────────────────────────────────────────────
+// Registers a "Karakeep" tab in the Degoog results UI.
+// engineType must match export const type above.
+
+export const tab = {
+  name: "Karakeep",
+  engineType: "karakeep",
+};
 
 // ── Engine ────────────────────────────────────────────────────────────────────
 
