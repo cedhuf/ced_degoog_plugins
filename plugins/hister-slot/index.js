@@ -318,7 +318,10 @@ export const slot = {
     _folderName = basename(ctx.dir);
   },
 
-  trigger(_query) {
+  trigger(query) {
+    // Don't run on bang-command pages (e.g. ?q=!hister+bandcamp) — the slot
+    // would search Hister for the literal "!hister bandcamp" string.
+    if (query && /^!/.test(query.trim())) return false;
     return _isConfigured() && cfg.slotEnabled;
   },
 

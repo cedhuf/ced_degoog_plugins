@@ -21,8 +21,11 @@
 
     var q = el.getAttribute("data-q");
     if (q) {
+      // ?type=hister crashes the Degoog streaming endpoint for custom engine
+      // types. The only reliable Hister-only path is the !hister bang command
+      // (commands route → searchSingleEngine), so we send the query there.
       window.location.replace(
-        "/search?q=" + encodeURIComponent(q) + "&type=hister",
+        "/search?q=" + encodeURIComponent("!hister " + q),
       );
     }
   }
