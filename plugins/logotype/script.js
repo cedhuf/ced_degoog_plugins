@@ -310,39 +310,46 @@
     }, fontDef);
   }
 
-  // ── Card UI wiring ──────────────────────────────────────────────────────────
+  // ── Card UI helpers ─────────────────────────────────────────────────────────
+
+  function _readDims(root) {
+    return {
+      homeMaxHeight:   parseInt(root.querySelector("#lt-home-h")?.value   ?? "300", 10),
+      homeMaxWidth:    parseInt(root.querySelector("#lt-home-w")?.value   ?? "500", 10),
+      searchMaxHeight: parseInt(root.querySelector("#lt-search-h")?.value ?? "100", 10),
+      searchMaxWidth:  parseInt(root.querySelector("#lt-search-w")?.value ?? "300", 10),
+    };
+  }
 
   function wireResultUi(root) {
     _loadAllPreviewFonts();
 
     const card = /** @type {HTMLElement} */ (root);
-    let activeTab = card.dataset.defaultTab || "text";
+    let activeTab = card.dataset.activeTab || "text";
+    let _pendingDataUrl = null; // staged image — selected but not yet saved
 
-    // ── Tabs
-    root.querySelectorAll(".lt-tab").forEach(btn => {
+    // ── Mode tabs ─────────────────────────────────────────────────────────────
+    root.querySelectorAll(".lt-mode-tab").forEach(btn => {
       btn.addEventListener("click", () => {
         const tab = btn.dataset.tab;
         if (tab === activeTab) return;
         activeTab = tab;
-        root.querySelectorAll(".lt-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-        root.querySelectorAll(".lt-panel").forEach(p => { p.style.display = "none"; });
-        const panel = root.querySelector(`#lt-panel-${tab}`);
-        if (panel) panel.style.display = "";
-
-        if (tab === "text") {
-          _refreshPreview(root);
-        } else {
-          _switchPreviewToImage(root, _cachedDataUrl || null);
-        }
+        root.querySelectorAll(".lt-mode-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+        const textPanel  = root.querySelector("#lt-panel-text");
+        const imagePanel = root.querySelector("#lt-panel-image");
+        if (textPanel)  textPanel.style.display  = tab === "text"  ? "" : "none";
+        if (imagePanel) imagePanel.style.display = tab === "image" ? "" : "none";
+        if (tab === "text") _refreshPreview(root);
+        else _switchPreviewToImage(root, _pendingDataUrl ?? _cachedDataUrl ?? null);
       });
     });
 
-    // ── Text input — live preview
+    // ── Text input — live preview ─────────────────────────────────────────────
     root.querySelector("#lt-wm-text")?.addEventListener("input", () => {
       if (activeTab === "text") _refreshPreview(root);
     });
 
-    // ── Font chips
+    // ── Font chips ────────────────────────────────────────────────────────────
     root.querySelectorAll(".lt-font-chip").forEach(chip => {
       chip.addEventListener("click", () => {
         root.querySelectorAll(".lt-font-chip").forEach(c => c.classList.toggle("active", c === chip));
@@ -350,7 +357,7 @@
       });
     });
 
-    // ── Color mode buttons
+    // ── Color mode buttons ────────────────────────────────────────────────────
     root.querySelectorAll(".lt-mode-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const mode = btn.dataset.mode;
@@ -361,7 +368,7 @@
       });
     });
 
-    // ── Solid swatches
+    // ── Solid swatches ────────────────────────────────────────────────────────
     root.querySelectorAll(".lt-swatch[data-color]").forEach(swatch => {
       swatch.addEventListener("click", () => {
         root.querySelectorAll(".lt-swatch[data-color]").forEach(s => s.classList.toggle("active", s === swatch));
@@ -371,13 +378,13 @@
       });
     });
 
-    // ── Custom solid color input
+    // ── Custom solid color input ──────────────────────────────────────────────
     root.querySelector("#lt-solid-custom")?.addEventListener("input", () => {
       root.querySelectorAll(".lt-swatch[data-color]").forEach(s => s.classList.remove("active"));
       if (activeTab === "text") _refreshPreview(root);
     });
 
-    // ── Gradient from/to inputs
+    // ── Gradient from/to inputs ───────────────────────────────────────────────
     ["#lt-grad-from", "#lt-grad-to"].forEach(id => {
       root.querySelector(id)?.addEventListener("input", () => {
         root.querySelectorAll(".lt-swatch-grad").forEach(s => s.classList.remove("active"));
@@ -385,7 +392,7 @@
       });
     });
 
-    // ── Angle buttons
+    // ── Angle buttons ─────────────────────────────────────────────────────────
     root.querySelectorAll(".lt-angle-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         root.querySelectorAll(".lt-angle-btn").forEach(b => b.classList.toggle("active", b === btn));
@@ -393,7 +400,7 @@
       });
     });
 
-    // ── Gradient presets
+    // ── Gradient presets ──────────────────────────────────────────────────────
     root.querySelectorAll(".lt-swatch-grad").forEach(swatch => {
       swatch.addEventListener("click", () => {
         const from = swatch.dataset.from, to = swatch.dataset.to;
@@ -408,7 +415,7 @@
       });
     });
 
-    // ── Decorator type chips
+    // ── Decorator type chips ──────────────────────────────────────────────────
     root.querySelectorAll(".lt-dec-chip").forEach(chip => {
       chip.addEventListener("click", () => {
         root.querySelectorAll(".lt-dec-chip").forEach(c => c.classList.toggle("active", c === chip));
@@ -419,7 +426,7 @@
       });
     });
 
-    // ── Decorator position buttons
+    // ── Decorator position buttons ────────────────────────────────────────────
     root.querySelectorAll(".lt-pos-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         root.querySelectorAll(".lt-pos-btn").forEach(b => b.classList.toggle("active", b === btn));
@@ -427,50 +434,24 @@
       });
     });
 
-    // ── Save wordmark
-    root.querySelector("#lt-wm-save")?.addEventListener("click", async () => {
-      const state = _readState(root);
-      if (!state.text.trim()) { _setStatus(root, "Enter a brand name first.", false); return; }
-      try {
-        const res = await fetch("/api/plugin/logotype/wordmark", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(state),
-        });
-        const json = await res.json();
-        if (!res.ok) { _setStatus(root, json.error ?? "Save failed.", false); return; }
-        _cachedWordmark = { ...state };
-        _setStatus(root, "Saved! Reloading…", true);
-        setTimeout(() => location.reload(), 800);
-      } catch { _setStatus(root, "Save failed.", false); }
-    });
-
-    // ── Image upload
-    root.querySelector("#logotype-file")?.addEventListener("change", async (e) => {
+    // ── File selection (staged — preview first, upload on Save) ──────────────
+    root.querySelector("#logotype-file")?.addEventListener("change", (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       if (file.size > 2 * 1024 * 1024) { _setStatus(root, "Image too large (max 2 MB).", false); return; }
       const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = /** @type {string} */ (reader.result);
-        try {
-          const res = await fetch("/api/plugin/logotype/logo", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dataUrl }),
-          });
-          const json = await res.json();
-          if (!res.ok) { _setStatus(root, json.error ?? "Upload failed.", false); return; }
-          _cachedDataUrl = dataUrl;
-          _switchPreviewToImage(root, dataUrl);
-          _updateImgThumb(root, dataUrl);
-          _setStatus(root, "Saved! Reloading…", true);
-          setTimeout(() => location.reload(), 800);
-        } catch { _setStatus(root, "Upload failed.", false); }
+      reader.onload = () => {
+        _pendingDataUrl = /** @type {string} */ (reader.result);
+        _switchPreviewToImage(root, _pendingDataUrl);
+        _updateImgThumb(root, _pendingDataUrl);
+        const uploadText = root.querySelector(".lt-upload-text");
+        if (uploadText) uploadText.textContent = "Replace image";
+        _setStatus(root, `"${file.name}" ready — click Save to apply.`, true);
       };
       reader.readAsDataURL(file);
     });
 
-    // ── Remove image
+    // ── Remove image ──────────────────────────────────────────────────────────
     root.querySelector("#logotype-remove")?.addEventListener("click", async () => {
       try {
         const res = await fetch("/api/plugin/logotype/logo", {
@@ -478,62 +459,80 @@
           body: JSON.stringify({ dataUrl: null }),
         });
         if (!res.ok) { _setStatus(root, "Remove failed.", false); return; }
-        _cachedDataUrl = null;
+        _cachedDataUrl = null; _pendingDataUrl = null;
         _updateImgThumb(root, null);
         _switchPreviewToImage(root, null);
         _setStatus(root, "Image removed.", true);
       } catch { _setStatus(root, "Remove failed.", false); }
     });
 
-    // ── Dimension sliders
-    const homeHSlider   = /** @type {HTMLInputElement|null} */ (root.querySelector("#lt-home-h"));
-    const homeWSlider   = /** @type {HTMLInputElement|null} */ (root.querySelector("#lt-home-w"));
-    const searchHSlider = /** @type {HTMLInputElement|null} */ (root.querySelector("#lt-search-h"));
-    const searchWSlider = /** @type {HTMLInputElement|null} */ (root.querySelector("#lt-search-w"));
-
-    [[homeHSlider,"lt-home-h-val"],[homeWSlider,"lt-home-w-val"],[searchHSlider,"lt-search-h-val"],[searchWSlider,"lt-search-w-val"]]
-      .forEach(([slider, valId]) => {
-        if (!slider) return;
-        const label = root.querySelector(`#${valId}`);
-        slider.addEventListener("input", () => { if (label) label.textContent = `${slider.value}px`; });
-      });
-
-    root.querySelector("#logotype-reset-dims")?.addEventListener("click", async () => {
-      const defaults = { homeMaxHeight: 300, homeMaxWidth: 500, searchMaxHeight: 100, searchMaxWidth: 300 };
-      if (homeHSlider)   { homeHSlider.value   = "300"; root.querySelector("#lt-home-h-val").textContent   = "300px"; }
-      if (homeWSlider)   { homeWSlider.value   = "500"; root.querySelector("#lt-home-w-val").textContent   = "500px"; }
-      if (searchHSlider) { searchHSlider.value = "100"; root.querySelector("#lt-search-h-val").textContent = "100px"; }
-      if (searchWSlider) { searchWSlider.value = "300"; root.querySelector("#lt-search-w-val").textContent = "300px"; }
-      try {
-        const res = await fetch("/api/plugin/logotype/dimensions", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(defaults),
-        });
-        if (!res.ok) { _setStatus(root, "Reset failed.", false); return; }
-        _homeMaxHeight = 300; _homeMaxWidth = 500; _searchMaxHeight = 100; _searchMaxWidth = 300;
-        _dimensionsLoaded = true;
-        _setStatus(root, "Dimensions reset to defaults.", true);
-      } catch { _setStatus(root, "Reset failed.", false); }
+    // ── Dimension sliders — live label ────────────────────────────────────────
+    [["#lt-home-h",   "#lt-home-h-val"],
+     ["#lt-home-w",   "#lt-home-w-val"],
+     ["#lt-search-h", "#lt-search-h-val"],
+     ["#lt-search-w", "#lt-search-w-val"]].forEach(([sliderId, valId]) => {
+      const slider = /** @type {HTMLInputElement|null} */ (root.querySelector(sliderId));
+      const label  = root.querySelector(valId);
+      if (!slider || !label) return;
+      slider.addEventListener("input", () => { label.textContent = `${slider.value}px`; });
     });
 
-    root.querySelector("#logotype-save-dims")?.addEventListener("click", async () => {
-      const dims = {
-        homeMaxHeight:   parseInt(homeHSlider?.value   ?? "300", 10),
-        homeMaxWidth:    parseInt(homeWSlider?.value   ?? "500", 10),
-        searchMaxHeight: parseInt(searchHSlider?.value ?? "100", 10),
-        searchMaxWidth:  parseInt(searchWSlider?.value ?? "300", 10),
-      };
+    // ── Save (unified: wordmark or image + dimensions) ────────────────────────
+    root.querySelector("#lt-save")?.addEventListener("click", async () => {
+      const dims = _readDims(root);
+      _setStatus(root, "Saving…", true);
       try {
-        const res = await fetch("/api/plugin/logotype/dimensions", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dims),
-        });
-        if (!res.ok) { _setStatus(root, "Save failed.", false); return; }
-        Object.assign({ _homeMaxHeight: dims.homeMaxHeight, _homeMaxWidth: dims.homeMaxWidth, _searchMaxHeight: dims.searchMaxHeight, _searchMaxWidth: dims.searchMaxWidth });
-        _homeMaxHeight = dims.homeMaxHeight; _homeMaxWidth = dims.homeMaxWidth;
-        _searchMaxHeight = dims.searchMaxHeight; _searchMaxWidth = dims.searchMaxWidth;
-        _dimensionsLoaded = true;
-        document.querySelectorAll(".logotype-img--search").forEach(el => { el.style.maxHeight = `${_searchMaxHeight}px`; el.style.maxWidth = `${_searchMaxWidth}px`; });
-        document.querySelectorAll(".logotype-img:not(.logotype-img--search)").forEach(el => { el.style.maxHeight = `${_homeMaxHeight}px`; el.style.maxWidth = `${_homeMaxWidth}px`; });
-        _setStatus(root, "Dimensions saved!", true);
+        if (activeTab === "text") {
+          const state = _readState(root);
+          if (!state.text.trim()) { _setStatus(root, "Enter a brand name first.", false); return; }
+          const [wmRes, dimsRes] = await Promise.all([
+            fetch("/api/plugin/logotype/wordmark", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(state),
+            }),
+            fetch("/api/plugin/logotype/dimensions", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(dims),
+            }),
+          ]);
+          if (!wmRes.ok) {
+            const j = await wmRes.json().catch(() => ({}));
+            _setStatus(root, j.error ?? "Save failed.", false);
+            return;
+          }
+          _cachedWordmark = { ...state };
+          _setStatus(root, "Saved! Reloading…", true);
+          setTimeout(() => location.reload(), 800);
+
+        } else { // image tab
+          const reqs = [
+            fetch("/api/plugin/logotype/dimensions", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(dims),
+            }),
+          ];
+          if (_pendingDataUrl) {
+            reqs.push(fetch("/api/plugin/logotype/logo", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ dataUrl: _pendingDataUrl }),
+            }));
+          }
+          const results = await Promise.all(reqs);
+          if (results.some(r => !r.ok)) { _setStatus(root, "Save failed.", false); return; }
+          if (_pendingDataUrl) { _cachedDataUrl = _pendingDataUrl; _pendingDataUrl = null; }
+          // Update live image dimensions on current page
+          _homeMaxHeight = dims.homeMaxHeight; _homeMaxWidth = dims.homeMaxWidth;
+          _searchMaxHeight = dims.searchMaxHeight; _searchMaxWidth = dims.searchMaxWidth;
+          _dimensionsLoaded = true;
+          document.querySelectorAll(".logotype-img--search").forEach(el => {
+            el.style.maxHeight = `${_searchMaxHeight}px`; el.style.maxWidth = `${_searchMaxWidth}px`;
+          });
+          document.querySelectorAll(".logotype-img:not(.logotype-img--search)").forEach(el => {
+            el.style.maxHeight = `${_homeMaxHeight}px`; el.style.maxWidth = `${_homeMaxWidth}px`;
+          });
+          _setStatus(root, "Saved! Reloading…", true);
+          setTimeout(() => location.reload(), 800);
+        }
       } catch { _setStatus(root, "Save failed.", false); }
     });
 
@@ -542,7 +541,7 @@
       try {
         const res = await fetch("/api/plugin/logotype/reset", { method: "POST" });
         if (!res.ok) { _setStatus(root, "Reset failed.", false); return; }
-        _cachedDataUrl = null; _cachedWordmark = null;
+        _cachedDataUrl = null; _cachedWordmark = null; _pendingDataUrl = null;
         _setStatus(root, "Reset. Reloading…", true);
         setTimeout(() => location.reload(), 600);
       } catch { _setStatus(root, "Reset failed.", false); }

@@ -221,19 +221,28 @@ export default {
       `<button class="lt-pos-btn${decPos === pos ? " active" : ""}" data-pos="${pos}">${label}</button>`
     ).join("");
 
-    // Dimension sliders
+    // Dimension slider helper
     const sliderRow = (id, label, min, max, value) =>
       `<div class="lt-slider-row"><span class="lt-slider-label">${label}</span><input id="${id}" type="range" min="${min}" max="${max}" value="${value}" class="lt-slider"/><span id="${id}-val" class="lt-slider-val">${value}px</span></div>`;
-
-    const imgPreview = current
-      ? `<img id="logotype-preview" src="${current}" alt="Current logo" class="lt-img-thumb"/>`
-      : `<p id="logotype-nologo" class="lt-img-none">No image set.</p>`;
 
     return {
       title: "Logotype",
       html: `
-        <div id="logotype-card" data-default-tab="${defaultTab}" data-wm-font="${wmFont}">
+        <div id="logotype-card" data-active-tab="${defaultTab}" data-wm-font="${wmFont}">
 
+          <!-- ── Mode selector ── -->
+          <div class="lt-mode-tabs">
+            <button class="lt-mode-tab${defaultTab === "text"  ? " active" : ""}" data-tab="text" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M17 6H7"/><path d="M12 6v12"/></svg>
+              Text
+            </button>
+            <button class="lt-mode-tab${defaultTab === "image" ? " active" : ""}" data-tab="image" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Image
+            </button>
+          </div>
+
+          <!-- ── Preview ── -->
           <div class="lt-preview-wrap">
             <span class="lt-preview-label">Preview</span>
             <div class="lt-preview-logo-area">${previewContent}</div>
@@ -242,13 +251,8 @@ export default {
             </div>
           </div>
 
-          <div class="lt-tabs">
-            <button class="lt-tab${defaultTab === "text"  ? " active" : ""}" data-tab="text">Text</button>
-            <button class="lt-tab${defaultTab === "image" ? " active" : ""}" data-tab="image">Image</button>
-          </div>
-
           <!-- ── Text panel ── -->
-          <div id="lt-panel-text" class="lt-panel"${defaultTab !== "text" ? ' style="display:none;"' : ""}>
+          <div id="lt-panel-text" class="lt-panel"${defaultTab !== "text" ? ' style="display:none"' : ""}>
 
             <input id="lt-wm-text" type="text" class="lt-text-input" value="${wmText}" placeholder="Your brand name…" maxlength="80" autocomplete="off" spellcheck="false"/>
 
@@ -264,10 +268,10 @@ export default {
                 <button class="lt-mode-btn${colorType === "solid"    ? " active" : ""}" data-mode="solid">Solid</button>
                 <button class="lt-mode-btn${colorType === "gradient" ? " active" : ""}" data-mode="gradient">Gradient</button>
               </div>
-              <div id="lt-solid-panel"${colorType !== "solid" ? ' style="display:none;"' : ""}>
+              <div id="lt-solid-panel"${colorType !== "solid"    ? ' style="display:none"' : ""}>
                 <div class="lt-swatches">${solidSwatches}</div>
               </div>
-              <div id="lt-gradient-panel"${colorType !== "gradient" ? ' style="display:none;"' : ""}>
+              <div id="lt-gradient-panel"${colorType !== "gradient" ? ' style="display:none"' : ""}>
                 <div class="lt-grad-row">
                   <label class="lt-grad-label">From<input id="lt-grad-from" type="color" value="${gradFrom}"/></label>
                   <label class="lt-grad-label">To<input id="lt-grad-to" type="color" value="${gradTo}"/></label>
@@ -280,36 +284,54 @@ export default {
             <div class="lt-section">
               <span class="lt-section-title">Decoration</span>
               <div class="lt-dec-group">${decChips}</div>
-              <div id="lt-pos-row" class="lt-pos-group"${decType === "none" ? ' style="display:none;"' : ""}>${posButtons}</div>
+              <div id="lt-pos-row" class="lt-pos-group"${decType === "none" ? ' style="display:none"' : ""}>${posButtons}</div>
             </div>
 
-            <button id="lt-wm-save" class="lt-btn">Save</button>
           </div>
 
           <!-- ── Image panel ── -->
-          <div id="lt-panel-image" class="lt-panel"${defaultTab !== "image" ? ' style="display:none;"' : ""}>
-            <div class="lt-img-row">
-              ${imgPreview}
-              <div class="lt-img-actions">
-                <label class="lt-btn">Upload image<input id="logotype-file" type="file" accept="image/*" style="display:none;"/></label>
-                <button id="logotype-remove" class="lt-btn lt-btn-danger">Remove</button>
-              </div>
-            </div>
-            <div class="lt-dims">
-              <span class="lt-dims-title">Dimensions</span>
-              ${sliderRow("lt-home-h",   "Home height",   20, 600,  homeMaxHeight)}
-              ${sliderRow("lt-home-w",   "Home width",    50, 1200, homeMaxWidth)}
-              ${sliderRow("lt-search-h", "Search height", 20, 300,  searchMaxHeight)}
-              ${sliderRow("lt-search-w", "Search width",  50, 600,  searchMaxWidth)}
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button id="logotype-save-dims" class="lt-btn">Save dimensions</button>
-                <button id="logotype-reset-dims" class="lt-btn lt-btn-ghost" title="Reset to defaults: 300×500 / 100×300">Reset to defaults</button>
-              </div>
-            </div>
+          <div id="lt-panel-image" class="lt-panel"${defaultTab !== "image" ? ' style="display:none"' : ""}>
+
+            <label class="lt-upload-zone" for="logotype-file">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="opacity:0.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span class="lt-upload-text">${current ? "Replace image" : "Choose an image"}</span>
+              <span class="lt-upload-hint">PNG · JPG · SVG · WebP &nbsp;·&nbsp; max 2 MB</span>
+              <input id="logotype-file" type="file" accept="image/*" style="display:none"/>
+            </label>
+
+            ${current
+              ? `<div class="lt-img-current">
+                   <img id="logotype-preview" src="${current}" alt="Current logo" class="lt-img-thumb"/>
+                   <button id="logotype-remove" class="lt-btn lt-btn-ghost lt-btn-danger" type="button">Remove image</button>
+                 </div>`
+              : `<p id="logotype-noimg" class="lt-img-none">No image set yet.</p>`
+            }
+
           </div>
 
+          <!-- ── Display size ── -->
+          <details class="lt-dims-details">
+            <summary class="lt-dims-summary">Display size</summary>
+            <div class="lt-dims-body">
+              <div class="lt-dims-group">
+                <span class="lt-dims-group-label">Home page</span>
+                ${sliderRow("lt-home-h", "Height", 20, 600,  homeMaxHeight)}
+                ${sliderRow("lt-home-w", "Width",  50, 1200, homeMaxWidth)}
+              </div>
+              <div class="lt-dims-group">
+                <span class="lt-dims-group-label">Search bar</span>
+                ${sliderRow("lt-search-h", "Height", 20, 300, searchMaxHeight)}
+                ${sliderRow("lt-search-w", "Width",  50, 600, searchMaxWidth)}
+              </div>
+            </div>
+          </details>
+
+          <!-- ── Footer ── -->
           <div class="lt-footer">
-            <button id="lt-reset" class="lt-btn lt-btn-danger lt-btn-ghost">Reset all</button>
+            <div class="lt-footer-actions">
+              <button id="lt-save"  class="lt-btn lt-btn-primary" type="button">Save</button>
+              <button id="lt-reset" class="lt-btn lt-btn-ghost lt-btn-danger" type="button">Reset to default</button>
+            </div>
             <p id="logotype-status" class="lt-status"></p>
           </div>
 
