@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Karakeep Slot — style.css
-   Relies on Degoog CSS variables for colours; falls back gracefully.
+   Mirrors the Hister Slot design for visual consistency.
+   Relies on Degoog CSS variables; falls back gracefully.
    All selectors prefixed .kk-* to avoid collisions.
 ───────────────────────────────────────────────────────────────────────────── */
 
@@ -13,9 +14,7 @@
 }
 
 .kk-result-title {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
   font-size: 1rem;
   font-weight: 400;
   color: var(--degoog-link, var(--degoog-accent, #4a9eff));
@@ -31,9 +30,13 @@
 }
 
 .kk-favicon {
-  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.3rem;
   border-radius: 2px;
   opacity: 0.85;
+  position: relative;
+  top: -1px;
 }
 
 .kk-result-url {
@@ -143,6 +146,9 @@
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 0.5rem;
+}
+
+.kk-card .kk-slot-header {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -184,9 +190,5 @@
 @media (max-width: 600px) {
   .kk-card {
     padding-left: 0.65rem;
-  }
-
-  .kk-result-title {
-    font-size: 0.9rem;
   }
 }

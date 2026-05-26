@@ -137,15 +137,6 @@ function _renderResult(r) {
     </div>`;
 }
 
-// ── Tab ───────────────────────────────────────────────────────────────────────
-// Registers a "Hister" tab in the Degoog search UI.
-// Requires the Hister Engine (engines/hister-engine) to also be installed.
-
-export const tab = {
-  name:       "Hister",
-  engineType: "hister",
-};
-
 // ── Interceptor ───────────────────────────────────────────────────────────────
 // Hister First: pre-fetches Hister in parallel with the normal search so the
 // cache is warm by the time the slot runs. Never modifies the query — the slot
@@ -462,4 +453,4 @@ export const routes = [
   },
 ];
 
-export default { tab, slot, interceptor };
+export default { slot, interceptor };
