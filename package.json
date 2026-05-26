@@ -47,8 +47,8 @@
     {
       "path": "engines/karakeep-engine",
       "name": "Karakeep Engine",
-      "description": "Native Karakeep bookmark search engine — search your personal bookmarks via the `!karakeep` bang shortcut.",
-      "version": "1.1.0",
+      "description": "Native Karakeep bookmark search engine — results in a dedicated tab and via the `!karakeep` bang shortcut.",
+      "version": "1.2.0",
       "screenshots": []
     }
   ],

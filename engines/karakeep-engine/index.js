@@ -1,14 +1,32 @@
 // Karakeep Engine for Degoog
 // Registers Karakeep as a native Degoog search engine.
-// Results appear via the !karakeep bang shortcut.
+// Results appear in a dedicated "Karakeep" tab and via the !karakeep bang shortcut.
 //
 // NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
 //       The Karakeep Slot has its own settings — they are NOT shared.
 //
+// Tab visibility: toggle the engine on/off in Settings → Engines → Karakeep Engine.
+// Degoog filters engine-type tabs against enabled engine types, so disabling the
+// engine also hides the Karakeep tab from search results.
+//
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
+// Custom type → dedicated "Karakeep" settings section + dedicated tab.
+// (Matches the Hister engine pattern — same as type = "hister" for Hister Engine.)
 export const type = "karakeep";
+
+// ── Tab ───────────────────────────────────────────────────────────────────────
+// Registers a "Karakeep" tab in the Degoog results UI.
+// engineType must match export const type above.
+// On/off: use the engine toggle in Settings → Engines → Karakeep Engine.
+
+export const tab = {
+  name:       "Karakeep",
+  engineType: "karakeep",
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
 
 let _url    = "";
 let _apiKey = "";
