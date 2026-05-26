@@ -8,6 +8,7 @@ Selectively remove or replace Degoog UI elements across all pages. No HTML injec
 |---|---|---|
 | **Hide home page footer** | toggle | off |
 | **Hide settings gear icon** | toggle | off |
+| **Hide logo / wordmark** | toggle | off |
 | **Search buttons** | `default` · `hide-lucky` · `arrow` | `default` |
 
 ### Search button modes
@@ -19,6 +20,8 @@ Selectively remove or replace Degoog UI elements across all pages. No HTML injec
 | `arrow` | Both buttons hidden — a minimal `→` arrow appears inside the search bar |
 
 > **Note:** If you hide the settings gear icon, your Degoog settings remain fully accessible at `yourdomain.tld/settings`.
+
+> **Note:** "Hide logo / wordmark" only affects the [Logotype](https://github.com/cedhuf/ced_degoog_plugins/tree/main/plugins/logotype) plugin's custom wordmark — it has no effect if Logotype is not installed.
 
 ## How it works
 

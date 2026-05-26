@@ -1,19 +1,14 @@
 // Karakeep Engine for Degoog
 // Registers Karakeep as a native Degoog search engine.
-// Results appear via the !karakeep bang shortcut (and a dedicated tab
-// when the tab/engine linking issue in Degoog is resolved upstream).
+// Results appear via the !karakeep bang shortcut.
+//
+// NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
+//       The Karakeep Slot has its own settings — they are NOT shared.
 //
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
 export const type = "karakeep";
-
-// Tab export — visible in the UI if/when Degoog resolves custom engine tabs.
-// See: https://github.com/cedhuf/ced_degoog_plugins for tracking issue.
-export const tab = {
-  name:       "Karakeep",
-  engineType: "karakeep",
-};
 
 let _url    = "";
 let _apiKey = "";
@@ -95,7 +90,13 @@ export default class KarakeepEngine {
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
-    if (!_isConfigured()) return [];
+    if (!_isConfigured()) {
+      console.warn(
+        "[karakeep-engine] Not configured — set URL and API Key in " +
+        "Settings → Engines → Karakeep Engine.",
+      );
+      return [];
+    }
 
     const doFetch = context?.fetch ?? fetch;
     try {

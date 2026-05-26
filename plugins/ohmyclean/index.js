@@ -8,16 +8,18 @@
 //   • trigger() returns false — no slot panel ever rendered.
 //
 // Confirmed selectors from degoog-org/degoog source (index-templates/):
-//   .home-footer-bottom   — home page footer
-//   #nav-settings-top     — home page settings gear (top-right)
-//   #nav-settings-results — results page settings gear (top-right)
-//   .button-row           — row with search + lucky buttons (home page)
-//   #btn-lucky            — "I'm Feeling Lucky" button
-//   #search-bar-home      — search bar wrapper (arrow injected here)
+//   .home-footer-bottom      — home page footer
+//   #nav-settings-top        — home page settings gear (top-right)
+//   #nav-settings-results    — results page settings gear (top-right)
+//   .button-row              — row with search + lucky buttons (home page)
+//   #btn-lucky               — "I'm Feeling Lucky" button
+//   #search-bar-home         — search bar wrapper (arrow injected here)
+//   #home-logo .logotype-wordmark — Logotype plugin wordmark (home page only)
 
 const cfg = {
   hideFooter:      false,
   hideNavSettings: false,
+  hideLogo:        false,
   buttons:         "default", // "default" | "hide-lucky" | "arrow"
 };
 
@@ -32,6 +34,9 @@ function _buildRules() {
     rules.push("#nav-settings-top { display: none !important; }");
     rules.push("#nav-settings-results { display: none !important; }");
   }
+  if (cfg.hideLogo)
+    // #home-logo only exists on the home page — safe to target globally.
+    rules.push("#home-logo .logotype-wordmark { display: none !important; }");
   if (cfg.buttons === "hide-lucky")
     rules.push("#btn-lucky { display: none !important; }");
   if (cfg.buttons === "arrow")
@@ -66,6 +71,15 @@ export const slot = {
         "Settings remain accessible at /settings.",
     },
     {
+      key:         "hideLogo",
+      label:       "Hide logo / wordmark",
+      type:        "toggle",
+      default:     false,
+      description:
+        "Hides the Logotype plugin wordmark on the home page. " +
+        "Has no effect if the Logotype plugin is not installed.",
+    },
+    {
       key:     "buttons",
       label:   "Search buttons",
       type:    "select",
@@ -81,6 +95,7 @@ export const slot = {
   configure(settings) {
     cfg.hideFooter      = Boolean(settings.hideFooter);
     cfg.hideNavSettings = Boolean(settings.hideNavSettings);
+    cfg.hideLogo        = Boolean(settings.hideLogo);
     cfg.buttons         = ["default", "hide-lucky", "arrow"].includes(settings.buttons)
       ? settings.buttons
       : "default";
@@ -107,6 +122,7 @@ export const routes = [
         JSON.stringify({
           hideFooter:      cfg.hideFooter,
           hideNavSettings: cfg.hideNavSettings,
+          hideLogo:        cfg.hideLogo,
           buttons:         cfg.buttons,
           css:             _buildRules(),
         }),
