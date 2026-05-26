@@ -181,7 +181,11 @@ export const interceptor = {
       console.log(`[hister-slot] pre-fetch failed: ${err.message}`);
     }
 
-    // Always return the query unchanged — the slot handles the redirect
+    // Route server-side to the Hister tab when activated
+    const entry = _getCached(q);
+    if (entry?.activated) {
+      return { query, overrides: { searchType: "hister" } };
+    }
     return { query };
   },
 };
@@ -266,11 +270,13 @@ export const slot = {
     // ── Hister First ──────────────────────────────────────────────────────────
     {
       key: "histerFirst",
-      label: "Hister First mode (experimental — do not enable)",
+      label: "Hister First mode",
       type: "toggle",
       default: false,
       description:
-        "⚠️ Not functional — causes redirect loops in the current Degoog version. Keep this OFF. See https://github.com/cedhuf/ced_degoog_plugins for status.",
+        "When your Hister history has enough results, automatically route the search " +
+        "to the dedicated Hister tab instead of global search. The slot panel still " +
+        "shows a \"Search all engines →\" link to opt out.",
     },
     {
       key: "histerFirstThreshold",
@@ -279,7 +285,8 @@ export const slot = {
       default: "10",
       placeholder: "10",
       description:
-        "Minimum number of Hister results needed to skip other engines (1–50). Has no effect while Hister First is disabled.",
+        "Minimum number of Hister results (before deduplication) needed to activate " +
+        "Hister First routing (1–50).",
     },
   ],
 
@@ -338,23 +345,13 @@ export const slot = {
     const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    // Hister First redirect is disabled — causes redirect loops with current
-    // Degoog versions. Tracking: https://github.com/cedhuf/ced_degoog_plugins
-    const histerFirst = false; // was: _histerFirstEnabled && (cached?.activated ?? false)
+    // Interceptor handles server-side routing — slot just renders the panel
+    const histerFirst = _histerFirstEnabled && (cached?.activated ?? false);
     const total   = results.length;
     const viewAll = `${cfg.url}/?q=${encodeURIComponent(q)}`;
     const skipUrl = `/api/plugin/${_folderName}/skip?q=${encodeURIComponent(q)}`;
     const items   = displayed.map(_renderResult).join("");
     const detail  = `hister-detail-${cfg.slotDetail}`;
-
-    // ── Hister First: redirect marker for script.js ──────────────────────────
-    // The <script> approach doesn't work because Degoog injects slot HTML via
-    // innerHTML, which browsers don't execute scripts from. Instead we drop a
-    // data-attribute marker that script.js (loaded normally by Degoog) picks up
-    // via MutationObserver and performs the redirect to ?type=hister.
-    const redirectScript = histerFirst
-      ? `<div id="hf-redir" data-q="${_esc(q)}" style="display:none"></div>`
-      : "";
 
     // Banner shown on the Hister tab after the redirect, so the user can opt out.
     const banner = histerFirst
@@ -382,7 +379,6 @@ export const slot = {
     if (cfg.slotStyle === "inline") {
       return {
         html: `
-          ${redirectScript}
           <div class="hister-slot hister-inline ${detail}">
             ${banner}
             <div class="hister-results">${items}</div>
@@ -393,7 +389,6 @@ export const slot = {
 
     return {
       html: `
-        ${redirectScript}
         <div class="hister-slot hister-card ${detail}">
           ${header}
           ${banner}

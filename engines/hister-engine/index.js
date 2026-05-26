@@ -1,9 +1,9 @@
 // Hister Engine for Degoog
-// Results appear in global search (default) and via the !hister bang shortcut.
-// A dedicated "Hister" tab is available — see "Tab mode" below.
+// Results appear in a dedicated "Hister" tab and via the !hister bang shortcut.
+// The Hister Slot interceptor automatically routes searches to this tab when
+// enough history results are found — no manual tab switching needed.
 
-// Default type = "web" → results appear in global search.
-export const type = "web";
+export const type = "hister";
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
@@ -53,15 +53,6 @@ export default class HisterEngine {
       description:
         "Your Hister Access Token (Hister → Profile → Access Token). Required if your instance uses authentication.",
       secret: true,
-    },
-    {
-      key:         "_tabModeHint",
-      label:       "Tab mode",
-      type:        "text",
-      description:
-        'To show Hister results only in a dedicated tab (removed from global search): ' +
-        'open Advanced settings → "Engine type — Override the tab this engine belongs to" → enter: hister. ' +
-        'Leave blank to restore global search (default).',
     },
   ];
 

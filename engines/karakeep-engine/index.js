@@ -1,6 +1,7 @@
 // Karakeep Engine for Degoog
-// Results appear in global search (default) and via the !karakeep bang shortcut.
-// A dedicated "Karakeep" tab is available — see "Tab mode" below.
+// Results appear in a dedicated "Karakeep" tab and via the !karakeep bang shortcut.
+// The Karakeep Slot interceptor automatically routes searches to this tab when
+// enough bookmark results are found — no manual tab switching needed.
 //
 // NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
 //       The Karakeep Slot has its own settings — they are NOT shared.
@@ -8,8 +9,7 @@
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
-// Default type = "web" → results appear in global search.
-export const type = "web";
+export const type = "karakeep";
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
@@ -90,15 +90,6 @@ export default class KarakeepEngine {
       default:     "20",
       placeholder: "20",
       description: "Maximum number of bookmarks returned per search (1–50).",
-    },
-    {
-      key:         "_tabModeHint",
-      label:       "Tab mode",
-      type:        "text",
-      description:
-        'To show Karakeep results only in a dedicated tab (removed from global search): ' +
-        'open Advanced settings → "Engine type — Override the tab this engine belongs to" → enter: karakeep. ' +
-        'Leave blank to restore global search (default).',
     },
   ];
 
