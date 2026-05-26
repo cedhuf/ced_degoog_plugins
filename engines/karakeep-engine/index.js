@@ -1,40 +1,43 @@
 // Karakeep Engine for Degoog
 // Registers Karakeep as a native Degoog search engine.
-// Results appear in a dedicated "Karakeep" tab and via the !karakeep bang shortcut.
+// Results appear via the !karakeep bang shortcut.
 //
 // NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
 //       The Karakeep Slot has its own settings — they are NOT shared.
 //
-// Tab visibility: toggle the engine on/off in Settings → Engines → Karakeep Engine.
-// Degoog filters engine-type tabs against enabled engine types, so disabling the
-// engine also hides the Karakeep tab from search results.
+// Result mode (settingsSchema → searchTypeOverride):
+//   "web"      — results mixed into global search (default)
+//   "karakeep" — results only in the dedicated Karakeep tab
+//
+// The dedicated tab is automatically shown/hidden based on the active mode.
 //
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
-import { basename } from "node:path";
 
-// Custom type → dedicated "Karakeep" settings section + dedicated tab.
-// (Matches the Hister engine pattern — same as type = "hister" for Hister Engine.)
-export const type = "karakeep";
+// Default type = "web" → results appear in global search.
+// Degoog reads searchTypeOverride at query time to determine the effective type.
+export const type = "web";
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 // Registers a "Karakeep" tab in the Degoog results UI.
-// engineType must match export const type above.
-// On/off: use the engine toggle in Settings → Engines → Karakeep Engine.
+// Visible only when searchTypeOverride = "karakeep" (dedicated tab mode).
+
+export const tab = {
+  name:       "Karakeep",
+  engineType: "karakeep",
+};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let _url = "";
+let _url    = "";
 let _apiKey = "";
-let _limit = 20;
+let _limit  = 20;
 
-function _isConfigured() {
-  return Boolean(_url && _apiKey);
-}
+function _isConfigured() { return Boolean(_url && _apiKey); }
 
 function _headers() {
   return {
-    Accept: "application/json",
+    Accept:        "application/json",
     Authorization: `Bearer ${_apiKey}`,
   };
 }
@@ -46,79 +49,81 @@ function _getTitle(b) {
 function _getUrl(b) {
   const c = b.content;
   if (!c) return "";
-  if (c.type === "link") return c.url || "";
-  if (c.type === "text") return c.sourceUrl || "";
+  if (c.type === "link")  return c.url       || "";
+  if (c.type === "text")  return c.sourceUrl || "";
   if (c.type === "asset") return c.sourceUrl || "";
   return "";
 }
 
 function _getSnippet(b) {
   return (
-    b.summary ||
-    b.content?.description ||
-    b.note ||
-    (b.content?.type === "text" ? b.content.text : "") ||
+    b.summary                                              ||
+    b.content?.description                                 ||
+    b.note                                                 ||
+    (b.content?.type === "text"  ? b.content.text    : "") ||
     (b.content?.type === "asset" ? b.content.content : "") ||
     ""
   ).slice(0, 300);
 }
 
-// ── Tab ───────────────────────────────────────────────────────────────────────
-// Registers a "Karakeep" tab in the Degoog results UI.
-// engineType must match export const type above.
-
-export const tab = {
-  name: "Karakeep",
-  engineType: "karakeep",
-};
-
 // ── Engine ────────────────────────────────────────────────────────────────────
 
 export default class KarakeepEngine {
   isClientExposed = false;
-  name = "Karakeep";
-  bangShortcut = "karakeep";
+  name            = "Karakeep";
+  bangShortcut    = "karakeep";
 
   settingsSchema = [
     {
-      key: "url",
-      label: "Karakeep Instance URL",
-      type: "url",
-      required: true,
+      key:         "url",
+      label:       "Karakeep Instance URL",
+      type:        "url",
+      required:    true,
       placeholder: "https://karakeep.example.com",
       description: "Base URL of your Karakeep instance (no trailing slash).",
     },
     {
-      key: "apiKey",
-      label: "API Key",
-      type: "password",
-      required: true,
+      key:         "apiKey",
+      label:       "API Key",
+      type:        "password",
+      required:    true,
       placeholder: "your-api-key",
       description:
         "Your Karakeep API key — generate one in Karakeep → Settings → API Keys.",
       secret: true,
     },
     {
-      key: "limit",
-      label: "Results per search",
-      type: "text",
-      default: "20",
+      key:         "limit",
+      label:       "Results per search",
+      type:        "text",
+      default:     "20",
       placeholder: "20",
       description: "Maximum number of bookmarks returned per search (1–50).",
+    },
+    {
+      key:         "searchTypeOverride",
+      label:       "Result mode",
+      type:        "select",
+      options:     ["web", "karakeep"],
+      default:     "web",
+      description:
+        "web — results mixed into global search · " +
+        "karakeep — dedicated Karakeep tab only (results not shown in global search)",
     },
   ];
 
   configure(settings) {
-    _url = (settings.url || "").replace(/\/$/, "");
+    _url    = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
-    _limit = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
+    _limit  = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
+    // searchTypeOverride is read directly by Degoog — no handling needed here.
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
     if (!_isConfigured()) {
       console.warn(
         "[karakeep-engine] Not configured — set URL and API Key in " +
-          "Settings → Engines → Karakeep Engine.",
+        "Settings → Engines → Karakeep Engine.",
       );
       return [];
     }
@@ -126,9 +131,10 @@ export default class KarakeepEngine {
     const doFetch = context?.fetch ?? fetch;
     try {
       const params = new URLSearchParams({ q: query, limit: String(_limit) });
-      const res = await doFetch(`${_url}/api/v1/bookmarks/search?${params}`, {
-        headers: _headers(),
-      });
+      const res = await doFetch(
+        `${_url}/api/v1/bookmarks/search?${params}`,
+        { headers: _headers() },
+      );
       if (!res.ok) return [];
 
       const data = await res.json();
@@ -136,10 +142,10 @@ export default class KarakeepEngine {
 
       return bookmarks
         .map((b) => ({
-          title: _getTitle(b),
-          url: _getUrl(b),
+          title:   _getTitle(b),
+          url:     _getUrl(b),
           snippet: _getSnippet(b),
-          source: this.name,
+          source:  this.name,
         }))
         .filter((r) => r.title && r.url);
     } catch {
