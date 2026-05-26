@@ -275,11 +275,11 @@ export const slot = {
     // ── Hister First ──────────────────────────────────────────────────────────
     {
       key: "histerFirst",
-      label: "Hister First mode",
+      label: "Hister First mode (experimental — do not enable)",
       type: "toggle",
       default: false,
       description:
-        "When your history has enough results, skip other search engines entirely. Requires the Hister Engine to also be installed.",
+        "⚠️ Not functional — causes redirect loops in the current Degoog version. Keep this OFF. See https://github.com/cedhuf/ced_degoog_plugins for status.",
     },
     {
       key: "histerFirstThreshold",
@@ -288,7 +288,7 @@ export const slot = {
       default: "10",
       placeholder: "10",
       description:
-        "Minimum number of Hister results needed to skip other engines (1–50).",
+        "Minimum number of Hister results needed to skip other engines (1–50). Has no effect while Hister First is disabled.",
     },
   ],
 
@@ -347,7 +347,9 @@ export const slot = {
     const displayed = results.slice(0, cfg.slotLimit);
     if (!displayed.length) return { html: "" };
 
-    const histerFirst = _histerFirstEnabled && (cached?.activated ?? false);
+    // Hister First redirect is disabled — causes redirect loops with current
+    // Degoog versions. Tracking: https://github.com/cedhuf/ced_degoog_plugins
+    const histerFirst = false; // was: _histerFirstEnabled && (cached?.activated ?? false)
     const total   = results.length;
     const viewAll = `${cfg.url}/?q=${encodeURIComponent(q)}`;
     const skipUrl = `/api/plugin/${_folderName}/skip?q=${encodeURIComponent(q)}`;

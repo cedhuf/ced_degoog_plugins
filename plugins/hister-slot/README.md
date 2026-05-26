@@ -6,6 +6,12 @@ When you search, a **"In your index"** panel appears alongside regular results, 
 
 ![Hister Slot screenshot](screenshots/screenshot.png)
 
+> **⚠️ Known issue — Hister First mode is not functional**
+>
+> The "Hister First" feature (automatically switching to Hister-only results when your history has enough matches) is **disabled in v2.4.0** and must not be enabled. Activating it causes an infinite redirect loop in the current Degoog version. The plugin's core "In your index" panel works perfectly — only the automatic engine-switching is affected.
+>
+> See [issue #TBD](https://github.com/cedhuf/ced_degoog_plugins/issues) for details and progress.
+
 ## Requirements
 
 - Degoog ≥ 0.17.0
