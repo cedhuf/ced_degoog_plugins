@@ -351,20 +351,14 @@ export const slot = {
     const items   = displayed.map(_renderResult).join("");
     const detail  = `hister-detail-${cfg.slotDetail}`;
 
-    // ── Hister First: client-side redirect to ?type=hister ───────────────────
-    // Only fires when not already on the Hister tab, so there is no redirect loop.
-    // Uses a data attribute to pass the query safely without JS string-escaping.
-    const redirectScript = histerFirst ? `
-      <div id="hf-redir" data-q="${_esc(q)}" style="display:none"></div>
-      <script>
-        (function () {
-          var t = new URLSearchParams(window.location.search).get("type") || "web";
-          if (t !== "hister") {
-            var q = document.getElementById("hf-redir").getAttribute("data-q");
-            if (q) window.location.replace("/search?q=" + encodeURIComponent(q) + "&type=hister");
-          }
-        })();
-      </script>` : "";
+    // ── Hister First: redirect marker for script.js ──────────────────────────
+    // The <script> approach doesn't work because Degoog injects slot HTML via
+    // innerHTML, which browsers don't execute scripts from. Instead we drop a
+    // data-attribute marker that script.js (loaded normally by Degoog) picks up
+    // via MutationObserver and performs the redirect to ?type=hister.
+    const redirectScript = histerFirst
+      ? `<div id="hf-redir" data-q="${_esc(q)}" style="display:none"></div>`
+      : "";
 
     // Banner shown on the Hister tab after the redirect, so the user can opt out.
     const banner = histerFirst
