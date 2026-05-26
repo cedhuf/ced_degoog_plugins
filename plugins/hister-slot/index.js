@@ -162,8 +162,13 @@ export const interceptor = {
     // User clicked "Search all engines →" — pass through once
     if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
 
-    // Cache hit — no need to fetch again
-    if (_getCached(q)) return { query };
+    // Cache hit — return with override if activated
+    const earlyHit = _getCached(q);
+    if (earlyHit) {
+      return earlyHit.activated
+        ? { query, overrides: { searchType: "hister" } }
+        : { query };
+    }
 
     // Pre-fetch Hister to warm the cache for the slot.
     // Use a large fixed limit so we get an accurate raw count for the threshold
