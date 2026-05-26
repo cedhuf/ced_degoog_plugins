@@ -1,26 +1,17 @@
 // Karakeep Engine for Degoog
-// Registers Karakeep as a native Degoog search engine.
-// Results appear via the !karakeep bang shortcut.
+// Results appear in global search (default) and via the !karakeep bang shortcut.
+// A dedicated "Karakeep" tab is available — see "Tab mode" below.
 //
 // NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
 //       The Karakeep Slot has its own settings — they are NOT shared.
-//
-// Result mode (settingsSchema → searchTypeOverride):
-//   "web"      — results mixed into global search (default)
-//   "karakeep" — results only in the dedicated Karakeep tab
-//
-// The dedicated tab is automatically shown/hidden based on the active mode.
 //
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
 // Default type = "web" → results appear in global search.
-// Degoog reads searchTypeOverride at query time to determine the effective type.
 export const type = "web";
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-// Registers a "Karakeep" tab in the Degoog results UI.
-// Visible only when searchTypeOverride = "karakeep" (dedicated tab mode).
 
 export const tab = {
   name:       "Karakeep",
@@ -101,13 +92,13 @@ export default class KarakeepEngine {
       description: "Maximum number of bookmarks returned per search (1–50).",
     },
     {
-      key:         "searchTypeOverride",
-      label:       "Result mode",
-      type:        "select",
-      options:     ["web", "karakeep"],
+      key:         "_tabModeHint",
+      label:       "Tab mode",
+      type:        "text",
       description:
-        "web — results mixed into global search · " +
-        "karakeep — dedicated Karakeep tab only (results not shown in global search)",
+        'To show Karakeep results only in a dedicated tab (removed from global search): ' +
+        'open Advanced settings → "Engine type — Override the tab this engine belongs to" → enter: karakeep. ' +
+        'Leave blank to restore global search (default).',
     },
   ];
 
@@ -115,7 +106,6 @@ export default class KarakeepEngine {
     _url    = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
     _limit  = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
-    // searchTypeOverride is read directly by Degoog — no handling needed here.
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {

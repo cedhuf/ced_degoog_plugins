@@ -1,22 +1,11 @@
 // Hister Engine for Degoog
-// Registers Hister as a native Degoog search engine.
-// Results appear via the !hister bang shortcut.
-//
-// Result mode (settingsSchema → searchTypeOverride):
-//   "web"   — results mixed into global search (default)
-//   "hister" — results only in the dedicated Hister tab
-//
-// The dedicated tab is automatically shown/hidden based on the active mode.
-
-import { basename } from "node:path";
+// Results appear in global search (default) and via the !hister bang shortcut.
+// A dedicated "Hister" tab is available — see "Tab mode" below.
 
 // Default type = "web" → results appear in global search.
-// Degoog reads searchTypeOverride at query time to determine the effective type.
 export const type = "web";
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-// Registers a "Hister" tab in the Degoog results UI.
-// Visible only when searchTypeOverride = "hister" (dedicated tab mode).
 
 export const tab = {
   name:       "Hister",
@@ -66,20 +55,19 @@ export default class HisterEngine {
       secret: true,
     },
     {
-      key:         "searchTypeOverride",
-      label:       "Result mode",
-      type:        "select",
-      options:     ["web", "hister"],
+      key:         "_tabModeHint",
+      label:       "Tab mode",
+      type:        "text",
       description:
-        "web — results mixed into global search · " +
-        "hister — dedicated Hister tab only (results not shown in global search)",
+        'To show Hister results only in a dedicated tab (removed from global search): ' +
+        'open Advanced settings → "Engine type — Override the tab this engine belongs to" → enter: hister. ' +
+        'Leave blank to restore global search (default).',
     },
   ];
 
   configure(settings) {
     _url    = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
-    // searchTypeOverride is read directly by Degoog — no handling needed here.
   }
 
   async executeSearch(query, page = 1, _timeFilter, context) {
