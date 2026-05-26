@@ -23,6 +23,10 @@ const cfg = {
   buttons:         "default", // "default" | "hide-lucky" | "arrow"
 };
 
+// Boolean conversion safe pour les settings Degoog :
+// Boolean("false") === true est un piège classique — on compare explicitement.
+const _bool = (v) => v === true || v === "true" || v === 1 || v === "1";
+
 // ── CSS builder ───────────────────────────────────────────────────────────────
 
 function _buildRules() {
@@ -94,9 +98,9 @@ export const slot = {
   ],
 
   configure(settings) {
-    cfg.hideFooter      = Boolean(settings.hideFooter);
-    cfg.hideNavSettings = Boolean(settings.hideNavSettings);
-    cfg.hideLogo        = Boolean(settings.hideLogo);
+    cfg.hideFooter      = _bool(settings.hideFooter);
+    cfg.hideNavSettings = _bool(settings.hideNavSettings);
+    cfg.hideLogo        = _bool(settings.hideLogo);
     cfg.buttons         = ["default", "hide-lucky", "arrow"].includes(settings.buttons)
       ? settings.buttons
       : "default";

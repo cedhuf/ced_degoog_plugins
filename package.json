@@ -24,7 +24,7 @@
       "path": "plugins/ohmyclean",
       "name": "OhMyClean",
       "description": "Selectively hide or replace Degoog UI elements — footer, settings gear (home + results), search buttons, logo wordmark. Swap the button row for a minimal arrow, or just clean up what you don't use.",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "type": "slot",
       "screenshots": []
     },
