@@ -10,15 +10,19 @@
       "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
       "version": "2.5.0",
       "type": "slot",
-      "screenshots": ["screenshots/screenshot.png"]
+      "screenshots": [
+        "screenshots/screenshot.png"
+      ]
     },
     {
       "path": "plugins/karakeep-slot",
       "name": "Karakeep Slot",
       "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog — shows an \"In your bookmarks\" panel alongside search results.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "type": "slot",
-      "screenshots": ["screenshots/screenshot.png"]
+      "screenshots": [
+        "screenshots/screenshot.png"
+      ]
     },
     {
       "path": "plugins/ohmyclean",
@@ -33,7 +37,9 @@
       "name": "Logotype",
       "description": "Replace the Degoog logo with a custom text wordmark or your own image. Style your brand with font, color, and decorator options — all with a live preview. Manage via `!logo`.",
       "version": "1.4.0",
-      "screenshots": ["screenshots/screenshots.png"]
+      "screenshots": [
+        "screenshots/screenshots.png"
+      ]
     }
   ],
   "engines": [
@@ -42,7 +48,9 @@
       "name": "Hister Engine",
       "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
       "version": "1.5.0",
-      "screenshots": ["screenshots/screenshot.png"]
+      "screenshots": [
+        "screenshots/screenshot.png"
+      ]
     },
     {
       "path": "engines/karakeep-engine",
