@@ -81,18 +81,11 @@ export const slot = {
       : "default";
   },
 
-  // Always trigger — we need to inject our <style> on every search page.
-  trigger() { return true; },
-
-  async execute() {
-    const rules = _buildRules();
-    // Nothing to do — return empty so we don't pollute the results page.
-    if (!rules) return { html: "" };
-    // Inject as a <style> block. Unlike <script>, <style> works via innerHTML.
-    return {
-      html: `<style id="snip-style">${rules}</style>`,
-    };
-  },
+  // style.css and script.js are loaded globally by Degoog on every page
+  // (home, results, settings) regardless of trigger(). This slot never
+  // needs to render HTML — all work is done by style.css + script.js.
+  trigger() { return false; },
+  async execute() { return { html: "" }; },
 };
 
 // ── Routes ────────────────────────────────────────────────────────────────────

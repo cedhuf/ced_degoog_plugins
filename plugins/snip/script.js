@@ -1,49 +1,31 @@
 // Snip — client-side style injector.
 //
-// Runs on every page (home + results). Fetches /config, builds a <style>
-// element and injects it into <head>. sessionStorage cache means zero
-// flash-of-unstyled-content on repeat loads.
+// Degoog replaces __PLUGIN_ID__ in this file before serving it, so we can
+// build the correct /api/plugin/<id>/config URL without any URL-sniffing.
 //
-// Also handles arrow button injection when buttons="arrow".
+// Loaded on every page (home, results, settings) — see Degoog layout.html.
+// sessionStorage cache → zero flash-of-unstyled-content on repeat loads.
 
 (function () {
   "use strict";
 
+  // Degoog substitutes the real plugin ID here at serve time.
+  var CONFIG_URL = "/api/plugin/__PLUGIN_ID__/config";
+
   var STYLE_ID  = "snip-style-head";
-  var CACHE_KEY = "snip-cfg";
   var ARROW_ID  = "snip-arrow-btn";
-
-  // ── Derive plugin base URL from the <script> tag ───────────────────────────
-
-  var base = null;
-
-  // document.currentScript is set during synchronous script execution.
-  var cur = document.currentScript;
-  if (cur && cur.src) {
-    base = cur.src.replace(/\/script\.js(\?.*)?$/, "");
-  }
-
-  // Fallback: scan all <script> tags (needed if script is async/deferred).
-  if (!base) {
-    var tags = document.getElementsByTagName("script");
-    for (var i = 0; i < tags.length; i++) {
-      if (tags[i].src && /\/snip\/script\.js/.test(tags[i].src)) {
-        base = tags[i].src.replace(/\/script\.js(\?.*)?$/, "");
-        break;
-      }
-    }
-  }
-
-  if (!base) return; // Can't find our own URL — bail silently.
+  var CACHE_KEY = "snip-cfg";
 
   // ── Apply a config object ──────────────────────────────────────────────────
 
   function applyConfig(c) {
-    // Inject / replace <style> in <head>
+    // Build the CSS rules from the server-provided string.
+    var css = c.css || "";
+
+    // Inject / replace <style> in <head>.
     var existing = document.getElementById(STYLE_ID);
     if (existing) existing.parentNode.removeChild(existing);
 
-    var css = c.css || "";
     if (css) {
       var style = document.createElement("style");
       style.id = STYLE_ID;
@@ -51,7 +33,7 @@
       (document.head || document.documentElement).appendChild(style);
     }
 
-    // Arrow button
+    // Arrow button injection.
     if (c.buttons === "arrow") {
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", injectArrow);
@@ -62,10 +44,10 @@
   }
 
   // ── Arrow button ───────────────────────────────────────────────────────────
-  // Appended inside #search-bar-home so it appears as an icon in the bar.
+  // Appended inside #search-bar-home — appears as an icon within the bar.
 
   function injectArrow() {
-    if (document.getElementById(ARROW_ID)) return; // already injected
+    if (document.getElementById(ARROW_ID)) return;
     var bar = document.getElementById("search-bar-home");
     if (!bar) return;
     var btn = document.createElement("button");
@@ -91,7 +73,7 @@
   } catch (e) { /* ignore */ }
 
   // Fetch fresh config in the background.
-  fetch(base + "/config", { credentials: "same-origin" })
+  fetch(CONFIG_URL, { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (c) {
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch (e) {}
