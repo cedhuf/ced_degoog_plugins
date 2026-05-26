@@ -70,7 +70,6 @@ export default class HisterEngine {
       label:       "Result mode",
       type:        "select",
       options:     ["web", "hister"],
-      default:     "web",
       description:
         "web — results mixed into global search · " +
         "hister — dedicated Hister tab only (results not shown in global search)",

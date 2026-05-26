@@ -105,7 +105,6 @@ export default class KarakeepEngine {
       label:       "Result mode",
       type:        "select",
       options:     ["web", "karakeep"],
-      default:     "web",
       description:
         "web — results mixed into global search · " +
         "karakeep — dedicated Karakeep tab only (results not shown in global search)",
