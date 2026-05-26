@@ -30,7 +30,7 @@
   // ── Page-logo state ─────────────────────────────────────────────────────────
 
   const _hideStyle = document.createElement("style");
-  _hideStyle.textContent = "#home-logo .logo, .results-logo { visibility: hidden !important; }";
+  _hideStyle.textContent = "#home-logo, .results-logo { visibility: hidden !important; }";
   document.head.appendChild(_hideStyle);
 
   const _searchHideStyle = document.createElement("style");
@@ -164,26 +164,31 @@
     const fontDef = FONT_MAP[config.font] || FONTS[0];
     _loadFont(config.font);
 
-    for (const { sel, search } of [
-      { sel: "#home-logo .logo", search: false },
-      { sel: ".results-logo",    search: true  },
-    ]) {
-      const el = document.querySelector(sel);
-      if (!el || el.dataset.logotypeApplied) continue;
-      el.dataset.logotypeApplied = "1";
-
+    // Home page: replace the content of #home-logo (works with default logo
+    // and any structure the Logotype plugin or Degoog puts inside it).
+    const homeLogo = document.querySelector("#home-logo");
+    if (homeLogo && !homeLogo.dataset.logotypeApplied) {
+      homeLogo.dataset.logotypeApplied = "1";
       const wrapper = document.createElement("span");
-      wrapper.className = search
-        ? "logotype-wordmark logotype-wordmark--search"
-        : "logotype-wordmark";
-
+      wrapper.className = "logotype-wordmark";
       _buildWordmarkContent(wrapper, config, fontDef);
+      homeLogo.replaceChildren(wrapper);
+    }
 
-      if (el.tagName === "A") {
-        el.style.color = "inherit";
-        el.style.textDecoration = "none";
-        el.replaceChildren(wrapper);
-      } else el.replaceWith(wrapper);
+    // Results page: keep existing behaviour (replace the .results-logo element).
+    const resultsEl = document.querySelector(".results-logo");
+    if (resultsEl && !resultsEl.dataset.logotypeApplied) {
+      resultsEl.dataset.logotypeApplied = "1";
+      const wrapper = document.createElement("span");
+      wrapper.className = "logotype-wordmark logotype-wordmark--search";
+      _buildWordmarkContent(wrapper, config, fontDef);
+      if (resultsEl.tagName === "A") {
+        resultsEl.style.color = "inherit";
+        resultsEl.style.textDecoration = "none";
+        resultsEl.replaceChildren(wrapper);
+      } else {
+        resultsEl.replaceWith(wrapper);
+      }
     }
   }
 
@@ -193,22 +198,31 @@
     document.querySelectorAll(".logotype-img").forEach(el => { el.src = dataUrl; });
 
     const newImgs = [];
-    for (const { sel, search } of [
-      { sel: "#home-logo .logo", search: false },
-      { sel: ".results-logo",    search: true  },
-    ]) {
-      const el = document.querySelector(sel);
-      if (!el || el.dataset.logotypeApplied) continue;
-      el.dataset.logotypeApplied = "1";
 
+    // Home page: replace the content of #home-logo with the image.
+    const homeLogo = document.querySelector("#home-logo");
+    if (homeLogo && !homeLogo.dataset.logotypeApplied) {
+      homeLogo.dataset.logotypeApplied = "1";
       const img = document.createElement("img");
       img.src = dataUrl; img.alt = "Logo";
-      img.className = search ? "logotype-img logotype-img--search" : "logotype-img";
-      img.style.maxHeight = `${search ? _searchMaxHeight : _homeMaxHeight}px`;
-      img.style.maxWidth  = `${search ? _searchMaxWidth  : _homeMaxWidth}px`;
+      img.className = "logotype-img";
+      img.style.maxHeight = `${_homeMaxHeight}px`;
+      img.style.maxWidth  = `${_homeMaxWidth}px`;
+      homeLogo.replaceChildren(img);
+      newImgs.push(img);
+    }
 
-      if (el.tagName === "A") el.replaceChildren(img);
-      else el.replaceWith(img);
+    // Results page: keep existing behaviour.
+    const resultsEl = document.querySelector(".results-logo");
+    if (resultsEl && !resultsEl.dataset.logotypeApplied) {
+      resultsEl.dataset.logotypeApplied = "1";
+      const img = document.createElement("img");
+      img.src = dataUrl; img.alt = "Logo";
+      img.className = "logotype-img logotype-img--search";
+      img.style.maxHeight = `${_searchMaxHeight}px`;
+      img.style.maxWidth  = `${_searchMaxWidth}px`;
+      if (resultsEl.tagName === "A") resultsEl.replaceChildren(img);
+      else resultsEl.replaceWith(img);
       newImgs.push(img);
     }
 

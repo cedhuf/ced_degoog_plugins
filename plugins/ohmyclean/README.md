@@ -21,7 +21,7 @@ Selectively remove or replace Degoog UI elements across all pages. No HTML injec
 
 > **Note:** If you hide the settings gear icon, your Degoog settings remain fully accessible at `yourdomain.tld/settings`.
 
-> **Note:** "Hide logo / wordmark" only affects the [Logotype](https://github.com/cedhuf/ced_degoog_plugins/tree/main/plugins/logotype) plugin's custom wordmark — it has no effect if Logotype is not installed.
+> **Note:** "Hide logo / wordmark" targets the `#home-logo` container — it hides the default Degoog logo and any custom logo set by the Logotype plugin.
 
 ## How it works
 

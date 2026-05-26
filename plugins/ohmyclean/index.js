@@ -14,7 +14,7 @@
 //   .button-row              — row with search + lucky buttons (home page)
 //   #btn-lucky               — "I'm Feeling Lucky" button
 //   #search-bar-home         — search bar wrapper (arrow injected here)
-//   #home-logo .logotype-wordmark — Logotype plugin wordmark (home page only)
+//   #home-logo                    — logo container (default logo + Logotype plugin)
 
 const cfg = {
   hideFooter:      false,
@@ -35,8 +35,9 @@ function _buildRules() {
     rules.push("#nav-settings-results { display: none !important; }");
   }
   if (cfg.hideLogo)
-    // #home-logo only exists on the home page — safe to target globally.
-    rules.push("#home-logo .logotype-wordmark { display: none !important; }");
+    // #home-logo only exists on the home page — hides the default logo and
+    // any custom logo set by the Logotype plugin.
+    rules.push("#home-logo { display: none !important; }");
   if (cfg.buttons === "hide-lucky")
     rules.push("#btn-lucky { display: none !important; }");
   if (cfg.buttons === "arrow")
@@ -76,8 +77,8 @@ export const slot = {
       type:        "toggle",
       default:     false,
       description:
-        "Hides the Logotype plugin wordmark on the home page. " +
-        "Has no effect if the Logotype plugin is not installed.",
+        "Hides the logo area on the home page — works with the default Degoog logo " +
+        "and with any custom logo set by the Logotype plugin.",
     },
     {
       key:     "buttons",
