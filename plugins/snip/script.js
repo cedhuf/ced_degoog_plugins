@@ -1,22 +1,30 @@
-// Snip — client-side CSS class applicator.
+// Snip — client-side style injector.
 //
-// Finds its own plugin base URL from the <script> tag, fetches /config,
-// caches in sessionStorage to prevent flash-of-unstyled-content on reload,
-// then applies CSS classes to <html> and (optionally) injects the arrow button.
+// Runs on every page (home + results). Fetches /config, builds a <style>
+// element and injects it into <head>. sessionStorage cache means zero
+// flash-of-unstyled-content on repeat loads.
+//
+// Also handles arrow button injection when buttons="arrow".
 
 (function () {
   "use strict";
 
-  // ── Find plugin base URL ───────────────────────────────────────────────────
-  // document.currentScript is set while this script executes synchronously.
-  // Fall back to scanning <script> tags if the browser clears it (e.g. defer).
+  var STYLE_ID  = "snip-style-head";
+  var CACHE_KEY = "snip-cfg";
+  var ARROW_ID  = "snip-arrow-btn";
+
+  // ── Derive plugin base URL from the <script> tag ───────────────────────────
 
   var base = null;
 
+  // document.currentScript is set during synchronous script execution.
   var cur = document.currentScript;
   if (cur && cur.src) {
     base = cur.src.replace(/\/script\.js(\?.*)?$/, "");
-  } else {
+  }
+
+  // Fallback: scan all <script> tags (needed if script is async/deferred).
+  if (!base) {
     var tags = document.getElementsByTagName("script");
     for (var i = 0; i < tags.length; i++) {
       if (tags[i].src && /\/snip\/script\.js/.test(tags[i].src)) {
@@ -26,65 +34,68 @@
     }
   }
 
-  if (!base) return; // Can't derive config URL — bail silently
+  if (!base) return; // Can't find our own URL — bail silently.
 
-  // ── Apply config object to <html> ──────────────────────────────────────────
+  // ── Apply a config object ──────────────────────────────────────────────────
 
   function applyConfig(c) {
-    var html = document.documentElement;
-    if (c.hideFooter)      html.classList.add("snip-hide-footer");
-    if (c.hideNavSettings) html.classList.add("snip-hide-nav");
-    if (c.buttons === "hide-lucky") html.classList.add("snip-hide-lucky");
+    // Inject / replace <style> in <head>
+    var existing = document.getElementById(STYLE_ID);
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var css = c.css || "";
+    if (css) {
+      var style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = css;
+      (document.head || document.documentElement).appendChild(style);
+    }
+
+    // Arrow button
     if (c.buttons === "arrow") {
-      html.classList.add("snip-arrow-mode");
-      injectArrow();
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", injectArrow);
+      } else {
+        injectArrow();
+      }
     }
   }
 
-  // ── Arrow button injection ─────────────────────────────────────────────────
-  // Appends a minimal submit button inside #search-bar-home so it appears
-  // as an icon within the search bar itself. .button-row is hidden via CSS.
+  // ── Arrow button ───────────────────────────────────────────────────────────
+  // Appended inside #search-bar-home so it appears as an icon in the bar.
 
   function injectArrow() {
-    function tryInject() {
-      if (document.getElementById("snip-arrow-btn")) return; // already done
-      var bar = document.getElementById("search-bar-home");
-      if (!bar) return;
-      var btn = document.createElement("button");
-      btn.type = "submit";
-      btn.id   = "snip-arrow-btn";
-      btn.setAttribute("aria-label", "Search");
-      btn.innerHTML =
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" ' +
-        'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
-        'stroke-linejoin="round" aria-hidden="true">' +
-        '<line x1="5" y1="12" x2="19" y2="12"/>' +
-        '<polyline points="12 5 19 12 12 19"/>' +
-        "</svg>";
-      bar.appendChild(btn);
-    }
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", tryInject);
-    } else {
-      tryInject();
-    }
+    if (document.getElementById(ARROW_ID)) return; // already injected
+    var bar = document.getElementById("search-bar-home");
+    if (!bar) return;
+    var btn = document.createElement("button");
+    btn.type = "submit";
+    btn.id   = ARROW_ID;
+    btn.setAttribute("aria-label", "Search");
+    btn.innerHTML =
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"' +
+      ' stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+      ' stroke-linejoin="round" aria-hidden="true">' +
+      '<line x1="5" y1="12" x2="19" y2="12"/>' +
+      '<polyline points="12 5 19 12 12 19"/>' +
+      "</svg>";
+    bar.appendChild(btn);
   }
 
-  // ── Fetch config with sessionStorage cache ─────────────────────────────────
-  // Applying the cached version first means zero FOUC on repeat page loads.
+  // ── Load config (cache-first) ──────────────────────────────────────────────
 
-  var CACHE_KEY = "snip-cfg";
+  // Apply cached version immediately → no FOUC on repeat loads.
+  try {
+    var raw = sessionStorage.getItem(CACHE_KEY);
+    if (raw) applyConfig(JSON.parse(raw));
+  } catch (e) { /* ignore */ }
 
-  var cached = null;
-  try { cached = JSON.parse(sessionStorage.getItem(CACHE_KEY)); } catch (e) {}
-  if (cached) applyConfig(cached);
-
+  // Fetch fresh config in the background.
   fetch(base + "/config", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (c) {
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch (e) {}
-      applyConfig(c); // idempotent — adding a class twice is a no-op
+      applyConfig(c);
     })
-    .catch(function () { /* silent — degrade gracefully */ });
+    .catch(function () { /* degrade gracefully */ });
 })();

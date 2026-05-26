@@ -1,34 +1,10 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Snip — style.css
-   CSS classes applied to <html> by script.js based on user settings.
-   Selectors verified against degoog-org/degoog source (index-templates/).
+   Only contains the arrow button styles. All hiding rules are injected
+   dynamically by execute() and script.js based on user settings.
 ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Hide home footer ────────────────────────────────────────────────────── */
-
-.snip-hide-footer .home-footer-bottom {
-  display: none !important;
-}
-
-/* ── Hide settings gear icon ─────────────────────────────────────────────── */
-
-.snip-hide-nav #nav-settings-top {
-  display: none !important;
-}
-
-/* ── Hide "I'm Feeling Lucky" button only ────────────────────────────────── */
-
-.snip-hide-lucky #btn-lucky {
-  display: none !important;
-}
-
-/* ── Arrow mode: hide the whole button row ───────────────────────────────── */
-
-.snip-arrow-mode .button-row {
-  display: none !important;
-}
-
-/* ── Arrow button (injected inside #search-bar-home by script.js) ─────────── */
+/* ── Arrow submit button (injected inside #search-bar-home by script.js) ──── */
 
 #snip-arrow-btn {
   display: flex;

@@ -24,7 +24,7 @@
       "path": "plugins/snip",
       "name": "Snip",
       "description": "Selectively hide or replace Degoog home page elements — footer, settings icon, search buttons. Swap the button row for a minimal arrow, or just clean up what you don't use.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "type": "slot",
       "screenshots": []
     },
