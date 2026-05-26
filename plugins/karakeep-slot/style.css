@@ -1,0 +1,192 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Karakeep Slot — style.css
+   Relies on Degoog CSS variables for colours; falls back gracefully.
+   All selectors prefixed .kk-* to avoid collisions.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Results (shared) ────────────────────────────────────────────────────── */
+
+.kk-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.kk-result-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--degoog-link, var(--degoog-accent, #4a9eff));
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.kk-result-title:hover {
+  text-decoration: underline;
+}
+
+.kk-favicon {
+  flex-shrink: 0;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.kk-result-url {
+  font-size: 0.78rem;
+  color: var(--degoog-url, var(--degoog-text-muted, #4d8c57));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.kk-result-snippet {
+  font-size: 0.875rem;
+  color: var(--degoog-text, inherit);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.45;
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+/* ── Tags ────────────────────────────────────────────────────────────────── */
+
+.kk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 4px;
+}
+
+.kk-tag {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--degoog-tag-bg, rgba(128, 128, 128, 0.12));
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #888));
+  white-space: nowrap;
+}
+
+/* ── Detail levels ───────────────────────────────────────────────────────── */
+
+.kk-detail-title .kk-result-url,
+.kk-detail-title .kk-result-snippet,
+.kk-detail-title .kk-tags {
+  display: none;
+}
+
+.kk-detail-title .kk-results {
+  gap: 0.35rem;
+}
+
+.kk-detail-snippet .kk-result-url,
+.kk-detail-snippet .kk-tags {
+  display: none;
+}
+
+.kk-detail-snippet .kk-results {
+  gap: 0.55rem;
+}
+
+/* ── Inline variant ──────────────────────────────────────────────────────── */
+
+.kk-inline {
+  font-size: 0.9rem;
+}
+
+.kk-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.15));
+  font-size: 0.72rem;
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #aaa));
+}
+
+.kk-footer-label {
+  flex: 1;
+}
+
+.kk-slot-viewall {
+  font-size: 0.72rem;
+  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
+  text-decoration: none;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.kk-slot-viewall:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ── Card variant ────────────────────────────────────────────────────────── */
+
+.kk-card {
+  border-left: 3px solid var(--degoog-accent, var(--degoog-primary, #4a9eff));
+  padding-left: 0.875rem;
+  font-size: 0.9rem;
+}
+
+.kk-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
+}
+
+.kk-card .kk-dot {
+  display: none;
+}
+
+.kk-slot-label {
+  flex: 1;
+}
+
+.kk-card .kk-results {
+  gap: 0.4rem;
+}
+
+.kk-card .kk-result-title {
+  font-size: 0.875rem;
+}
+
+.kk-card .kk-result-snippet {
+  font-size: 0.78rem;
+  -webkit-line-clamp: 1;
+}
+
+/* ── Error ───────────────────────────────────────────────────────────────── */
+
+.kk-error {
+  font-size: 0.82rem;
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #888));
+  padding: 0.2rem 0;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .kk-card {
+    padding-left: 0.65rem;
+  }
+
+  .kk-result-title {
+    font-size: 0.9rem;
+  }
+}

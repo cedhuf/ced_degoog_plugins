@@ -13,6 +13,14 @@
       "screenshots": ["screenshots/screenshot.png"]
     },
     {
+      "path": "plugins/karakeep-slot",
+      "name": "Karakeep Slot",
+      "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog — shows an \"In your bookmarks\" panel alongside search results.",
+      "version": "1.0.0",
+      "type": "slot",
+      "screenshots": ["screenshots/screenshot.png"]
+    },
+    {
       "path": "plugins/logotype",
       "name": "Logotype",
       "description": "Replace the Degoog logo with a custom text wordmark or your own image. Style your brand with font, color, and decorator options — all with a live preview. Manage via `!logo`.",
