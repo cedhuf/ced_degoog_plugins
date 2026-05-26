@@ -1,14 +1,18 @@
 // Karakeep Slot plugin for Degoog
 // Shows bookmarks from your personal Karakeep instance alongside search results.
-// "Karakeep First" mode: when enough bookmarks match, the interceptor routes the
-// search server-side to the dedicated Karakeep tab instead of global search.
+//
+// "Karakeep First" mode: when enabled and enough bookmarks match, the interceptor
+// returns { overrides: { searchType: "karakeep" } } so Degoog routes the search
+// server-side to the dedicated Karakeep tab (requires Degoog develop).
+// The interceptor fetches synchronously but is capped to 2 s to avoid blocking
+// the search pipeline if Karakeep is slow or unreachable.
 //
 // Karakeep REST API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth:             Authorization: Bearer <api-key>
 // Karakeep web UI:  /?q=<query>  (used for "View all" links)
 //
 // API docs: https://docs.karakeep.app/api/karakeep-api/
-// Requires Degoog ≥ 0.17.0
+// Requires Degoog develop (≥ 0.17.0 + interceptor overrides patch)
 // isClientExposed: false → all requests go through the Degoog server
 
 import { basename } from "node:path";
@@ -36,6 +40,15 @@ const PREFETCH_TTL   = 30_000;   // 30 s
 
 function _isConfigured() {
   return Boolean(cfg.url && cfg.apiKey);
+}
+
+// Degoog can deliver toggle values as the string "false" — Boolean("false") is
+// true, which would silently enable features the user disabled. Use _bool() for
+// all settings that come from toggle/select fields.
+function _bool(v) {
+  if (v === true  || v === "true")  return true;
+  if (v === false || v === "false") return false;
+  return Boolean(v);
 }
 
 function _headers() {
@@ -177,13 +190,14 @@ function _renderResult(b) {
 }
 
 // ── Interceptor ───────────────────────────────────────────────────────────────
-// Karakeep First: pre-fetches Karakeep in parallel with the normal search so
-// the cache is warm by the time the slot runs.
+// Karakeep First: fetches bookmarks before the search runs to decide whether
+// to route to the dedicated Karakeep tab. Capped at 2 s so a slow/unreachable
+// Karakeep never blocks the search pipeline and triggers "Search failed".
 
 export const interceptor = {
   isClientExposed: false,
   name:            "Karakeep First",
-  description:     "Routes the search to the Karakeep tab when your bookmarks have enough results.",
+  description:     "Routes to the Karakeep tab when your bookmarks have enough results.",
 
   init(ctx) {
     _folderName = basename(ctx.dir);
@@ -192,37 +206,41 @@ export const interceptor = {
   async intercept(query, context) {
     const q = query.trim();
 
-    // Skip: bang command, not configured, feature disabled, or already in cache
-    if (!q || /^!/.test(q) || !_isConfigured() || !_karakeepFirstEnabled) {
+    // Skip: bang command, feature disabled, or not configured
+    if (!q || /^!/.test(q) || !_karakeepFirstEnabled || !_isConfigured()) {
       return { query };
     }
 
     // User clicked "Search all engines →" — pass through once
     if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
 
-    // Cache hit — no need to fetch again
-    if (_getCached(q)) {
-      const entry = _getCached(q);
-      if (entry?.activated) {
-        return { query, overrides: { searchType: "karakeep" } };
-      }
-      return { query };
+    // Cache hit — routing decision is already known, no need to fetch again
+    const cached = _getCached(q);
+    if (cached) {
+      return cached.activated
+        ? { query, overrides: { searchType: "karakeep" } }
+        : { query };
     }
 
-    // Pre-fetch to warm the cache for the slot
+    // Fetch with a 2 s hard cap — prevents hanging the search pipeline when
+    // Karakeep is slow or unreachable. On timeout we fall through to { query }.
     try {
-      const results   = await _search(q, context?.fetch, 50);
+      const results = await Promise.race([
+        _search(q, context?.fetch, 50),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("prefetch timeout")), 2000),
+        ),
+      ]);
       const activated = results.length >= _karakeepFirstThreshold;
-      console.log(
-        `[karakeep-slot] pre-fetched ${results.length} bookmarks for "${q}" — activated=${activated}`,
-      );
       _prefetchCache.set(q, { results, ts: Date.now(), activated });
-
+      console.log(
+        `[karakeep-slot] prefetch ${results.length} bookmarks for "${q}" — activated=${activated}`,
+      );
       if (activated) {
         return { query, overrides: { searchType: "karakeep" } };
       }
     } catch (err) {
-      console.log(`[karakeep-slot] pre-fetch failed: ${err.message}`);
+      console.log(`[karakeep-slot] prefetch skipped: ${err.message}`);
     }
 
     return { query };
@@ -322,18 +340,19 @@ export const slot = {
   ],
 
   configure(settings) {
-    cfg.url          = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey       = settings.apiKey || "";
-    cfg.slotEnabled  = settings.slotEnabled !== false;
+    cfg.url       = (settings.url || "").replace(/\/$/, "");
+    cfg.apiKey    = settings.apiKey || "";
+    // Use explicit _bool() — Degoog can store toggle values as the string "false"
+    cfg.slotEnabled  = settings.slotEnabled === undefined ? true : _bool(settings.slotEnabled);
     cfg.slotPosition = settings.slotPosition || "above-results";
     cfg.slotStyle    = settings.slotStyle === "card" ? "card" : "inline";
     cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail)
       ? settings.slotDetail
       : "snippet";
-    cfg.slotLimit    = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
-    slot.position    = cfg.slotPosition;
+    cfg.slotLimit = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
+    slot.position = cfg.slotPosition;
 
-    _karakeepFirstEnabled   = Boolean(settings.karakeepFirst);
+    _karakeepFirstEnabled   = _bool(settings.karakeepFirst ?? false);
     _karakeepFirstThreshold = Math.max(
       1,
       Math.min(50, parseInt(settings.karakeepFirstThreshold || "3", 10)),
@@ -346,21 +365,31 @@ export const slot = {
 
   trigger(query) {
     if (query && /^!/.test(query.trim())) return false;
-    return _isConfigured() && cfg.slotEnabled;
+    const ok = _isConfigured() && cfg.slotEnabled;
+    if (!ok) {
+      console.log(
+        `[karakeep-slot] trigger=false — configured=${_isConfigured()} slotEnabled=${cfg.slotEnabled} url="${cfg.url}" hasKey=${Boolean(cfg.apiKey)}`,
+      );
+    }
+    return ok;
   },
 
   async execute(query, context) {
     const q = query.trim();
+    console.log(`[karakeep-slot] execute q="${q}" cacheHit=${Boolean(_getCached(q))}`);
 
     // Use pre-fetched cache when available — no double Karakeep round-trip
     const cached = _getCached(q);
     let bookmarks;
     if (cached) {
       bookmarks = cached.results;
+      console.log(`[karakeep-slot] served ${bookmarks.length} from cache`);
     } else {
       try {
         bookmarks = await _search(q, context?.fetch, cfg.slotLimit);
+        console.log(`[karakeep-slot] fetched ${bookmarks.length} bookmarks`);
       } catch (err) {
+        console.log(`[karakeep-slot] fetch error: ${err.message}`);
         return {
           html: `<div class="kk-slot kk-error"><p>${_esc(err.message)}</p></div>`,
         };
@@ -368,6 +397,7 @@ export const slot = {
     }
 
     const displayed = bookmarks.slice(0, cfg.slotLimit);
+    console.log(`[karakeep-slot] displaying ${displayed.length} / ${bookmarks.length}`);
     if (!displayed.length) return { html: "" };
 
     // Show banner when Karakeep First routed this search to the Karakeep tab

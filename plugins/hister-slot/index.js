@@ -1,13 +1,16 @@
 // Hister Slot plugin for Degoog
 // Shows pages from your personal Hister history index alongside search results.
-// Optionally activates "Hister First" mode: when enough history results are found,
-// the interceptor pre-fetches and caches them, then the slot injects a client-side
-// redirect to ?type=hister so only the Hister engine runs for that query.
+//
+// "Hister First" mode: when enabled and enough history results are found, the
+// interceptor returns { overrides: { searchType: "hister" } } so Degoog routes
+// the search server-side to the dedicated Hister tab (requires Degoog develop).
+// The interceptor fetches synchronously but is capped to 2 s to avoid blocking
+// the search pipeline if Hister is slow or unreachable.
 //
 // Hister search API: GET /search?query=<JSON>
 // Hister SPA URL:    /?q=<query>  (used for "View all" links)
 //
-// Requires Degoog ≥ 0.17.0
+// Requires Degoog develop (≥ 0.17.0 + interceptor overrides patch)
 // isClientExposed: false → all requests go through the Degoog server
 
 import { basename } from "node:path";
@@ -35,6 +38,15 @@ const PREFETCH_TTL = 30_000; // 30 s
 
 function _isConfigured() {
   return Boolean(cfg.url);
+}
+
+// Degoog can deliver toggle values as the string "false" — Boolean("false") is
+// true, which would silently enable features the user disabled. Use _bool() for
+// all settings that come from toggle/select fields.
+function _bool(v) {
+  if (v === true  || v === "true")  return true;
+  if (v === false || v === "false") return false;
+  return Boolean(v);
 }
 
 function _headers() {
@@ -138,14 +150,14 @@ function _renderResult(r) {
 }
 
 // ── Interceptor ───────────────────────────────────────────────────────────────
-// Hister First: pre-fetches Hister in parallel with the normal search so the
-// cache is warm by the time the slot runs. Never modifies the query — the slot
-// injects a client-side redirect to ?type=hister when enough results are found.
+// Hister First: fetches Hister results before the search runs to decide whether
+// to route to the dedicated Hister tab. Capped at 2 s so a slow/unreachable
+// Hister never blocks the search pipeline and triggers "Search failed".
 
 export const interceptor = {
   isClientExposed: false,
   name:            "Hister First",
-  description:     "Skips other search engines when your Hister history has enough results.",
+  description:     "Routes to the Hister tab when your history has enough results.",
 
   init(ctx) {
     _folderName = basename(ctx.dir);
@@ -154,43 +166,44 @@ export const interceptor = {
   async intercept(query, context) {
     const q = query.trim();
 
-    // Skip: bang command, not configured, feature disabled, or already in cache
-    if (!q || /^!/.test(q) || !_isConfigured() || !_histerFirstEnabled) {
+    // Skip: bang command, feature disabled, or not configured
+    if (!q || /^!/.test(q) || !_histerFirstEnabled || !_isConfigured()) {
       return { query };
     }
 
     // User clicked "Search all engines →" — pass through once
     if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
 
-    // Cache hit — return with override if activated
-    const earlyHit = _getCached(q);
-    if (earlyHit) {
-      return earlyHit.activated
+    // Cache hit — routing decision is already known, no need to fetch again
+    const cached = _getCached(q);
+    if (cached) {
+      return cached.activated
         ? { query, overrides: { searchType: "hister" } }
         : { query };
     }
 
-    // Pre-fetch Hister to warm the cache for the slot.
-    // Use a large fixed limit so we get an accurate raw count for the threshold
-    // check — dedup can remove many results (same URL/title), so we compare
-    // against raw length before deduplication.
+    // Fetch with a 2 s hard cap — prevents hanging the search pipeline when
+    // Hister is slow or unreachable. On timeout we fall through to { query }.
     try {
-      const raw = await _search(q, context?.fetch, 50);
+      const raw = await Promise.race([
+        _search(q, context?.fetch, 50),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("prefetch timeout")), 2000),
+        ),
+      ]);
       const activated = raw.length >= _histerFirstThreshold;
-      const results  = _dedupe(raw);
-      console.log(
-        `[hister-slot] pre-fetched ${raw.length} raw / ${results.length} unique for "${q}" — activated=${activated}`,
-      );
+      const results   = _dedupe(raw);
       _prefetchCache.set(q, { results, ts: Date.now(), activated });
+      console.log(
+        `[hister-slot] prefetch ${raw.length} raw / ${results.length} unique for "${q}" — activated=${activated}`,
+      );
+      if (activated) {
+        return { query, overrides: { searchType: "hister" } };
+      }
     } catch (err) {
-      console.log(`[hister-slot] pre-fetch failed: ${err.message}`);
+      console.log(`[hister-slot] prefetch skipped: ${err.message}`);
     }
 
-    // Route server-side to the Hister tab when activated
-    const entry = _getCached(q);
-    if (entry?.activated) {
-      return { query, overrides: { searchType: "hister" } };
-    }
     return { query };
   },
 };
@@ -296,12 +309,13 @@ export const slot = {
   ],
 
   configure(settings) {
-    cfg.url = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey = settings.apiKey || "";
-    cfg.slotEnabled = settings.slotEnabled !== false;
+    cfg.url       = (settings.url || "").replace(/\/$/, "");
+    cfg.apiKey    = settings.apiKey || "";
+    // Use explicit _bool() — Degoog can store toggle values as the string "false"
+    cfg.slotEnabled  = settings.slotEnabled  === undefined ? true : _bool(settings.slotEnabled);
     cfg.slotPosition = settings.slotPosition || "above-results";
-    cfg.slotStyle = settings.slotStyle === "card" ? "card" : "inline";
-    cfg.slotDetail = ["title", "snippet", "full"].includes(settings.slotDetail)
+    cfg.slotStyle    = settings.slotStyle === "card" ? "card" : "inline";
+    cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail)
       ? settings.slotDetail
       : "title";
     cfg.slotLimit = Math.max(
@@ -310,7 +324,7 @@ export const slot = {
     );
     slot.position = cfg.slotPosition;
 
-    _histerFirstEnabled = Boolean(settings.histerFirst);
+    _histerFirstEnabled = _bool(settings.histerFirst ?? false);
     _histerFirstThreshold = Math.max(
       1,
       Math.min(50, parseInt(settings.histerFirstThreshold || "10", 10)),
@@ -325,22 +339,33 @@ export const slot = {
     // Don't run on bang-command pages (e.g. ?q=!hister+bandcamp) — the slot
     // would search Hister for the literal "!hister bandcamp" string.
     if (query && /^!/.test(query.trim())) return false;
-    return _isConfigured() && cfg.slotEnabled;
+    const ok = _isConfigured() && cfg.slotEnabled;
+    if (!ok) {
+      console.log(
+        `[hister-slot] trigger=false — configured=${_isConfigured()} slotEnabled=${cfg.slotEnabled} url="${cfg.url}"`,
+      );
+    }
+    return ok;
   },
 
   async execute(query, context) {
     // Strip "hister:" prefix the interceptor may have injected
     const q = _cleanQuery(query);
+    console.log(`[hister-slot] execute q="${q}" cacheHit=${Boolean(_getCached(q))}`);
 
     // Use pre-fetched cache when available — no double Hister round-trip
     const cached = _getCached(q);
     let results;
     if (cached) {
       results = cached.results;
+      console.log(`[hister-slot] served ${results.length} from cache`);
     } else {
       try {
-        results = _dedupe(await _search(q, context?.fetch));
+        const raw = await _search(q, context?.fetch);
+        results   = _dedupe(raw);
+        console.log(`[hister-slot] fetched ${raw.length} raw / ${results.length} unique`);
       } catch (err) {
+        console.log(`[hister-slot] fetch error: ${err.message}`);
         return {
           html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
         };
@@ -348,6 +373,7 @@ export const slot = {
     }
 
     const displayed = results.slice(0, cfg.slotLimit);
+    console.log(`[hister-slot] displaying ${displayed.length} / ${results.length}`);
     if (!displayed.length) return { html: "" };
 
     // Interceptor handles server-side routing — slot just renders the panel
