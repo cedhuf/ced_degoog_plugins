@@ -16,7 +16,7 @@
       "path": "plugins/karakeep-slot",
       "name": "Karakeep Slot",
       "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog — shows an \"In your bookmarks\" panel alongside search results.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "type": "slot",
       "screenshots": ["screenshots/screenshot.png"]
     },

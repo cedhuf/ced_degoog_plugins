@@ -50,23 +50,46 @@ async function _search(query, contextFetch, limit) {
     `${cfg.url}/api/v1/bookmarks/search?${params}`,
     { headers: _headers() },
   );
+
+  // Try to surface Karakeep's own error message in all failure cases
+  let body = "";
+  try { body = await res.text(); } catch { /* ignore */ }
+
   if (!res.ok) {
+    let detail = "";
+    try {
+      const j = JSON.parse(body);
+      detail = j.message || j.error || j.details || "";
+    } catch { detail = body.slice(0, 200); }
+
     if (res.status === 401 || res.status === 403) {
       throw new Error(
-        `Karakeep returned HTTP ${res.status}. Check your API Key in ` +
-          `Settings → Plugins → Karakeep Slot → API Key.`,
+        `Karakeep returned HTTP ${res.status} (Unauthorized). ` +
+          `Check your API Key in Settings → Plugins → Karakeep Slot.` +
+          (detail ? ` — ${detail}` : ""),
+      );
+    }
+    if (res.status === 500) {
+      throw new Error(
+        `Karakeep returned HTTP 500. The most common cause is that ` +
+          `Meilisearch (the search backend) is not running or not reachable ` +
+          `by your Karakeep instance. Check your Karakeep logs and make sure ` +
+          `Meilisearch is healthy.` +
+          (detail ? ` Karakeep says: "${detail}"` : ""),
       );
     }
     throw new Error(
-      `Karakeep returned HTTP ${res.status}. Check the URL in ` +
-        `Settings → Plugins → Karakeep Slot.`,
+      `Karakeep returned HTTP ${res.status}. ` +
+        `Check the URL in Settings → Plugins → Karakeep Slot.` +
+        (detail ? ` — ${detail}` : ""),
     );
   }
+
   let data;
   try {
-    data = JSON.parse(await res.text());
+    data = JSON.parse(body);
   } catch {
-    throw new Error("Karakeep returned an unexpected response.");
+    throw new Error("Karakeep returned an unexpected response (not JSON).");
   }
   return Array.isArray(data.bookmarks) ? data.bookmarks : [];
 }
@@ -286,4 +309,53 @@ export const slot = {
   },
 };
 
-export default { slot };
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+export const routes = [
+  {
+    // GET /api/plugin/karakeep-slot/debug
+    // Verifies connectivity to Karakeep and reports plugin state.
+    method: "get",
+    path: "/debug",
+    async handler(_req) {
+      const state = {
+        configured: _isConfigured(),
+        url: cfg.url
+          ? cfg.url.replace(/^https?:\/\//, "").split("/")[0]
+          : null,
+        slotEnabled: cfg.slotEnabled,
+        slotLimit:   cfg.slotLimit,
+      };
+
+      // If configured, probe the Karakeep API to verify auth + reachability
+      if (_isConfigured()) {
+        try {
+          const params = new URLSearchParams({ q: "test", limit: "1" });
+          const res = await fetch(`${cfg.url}/api/v1/bookmarks/search?${params}`, {
+            headers: _headers(),
+          });
+          let bodySnippet = "";
+          try { bodySnippet = (await res.text()).slice(0, 300); } catch { /* ignore */ }
+          state.probe = {
+            status: res.status,
+            ok: res.ok,
+            body: bodySnippet,
+          };
+          if (res.status === 500) {
+            state.hint =
+              "HTTP 500 from Karakeep usually means Meilisearch is not running " +
+              "or not reachable. Check your Karakeep server logs.";
+          }
+        } catch (err) {
+          state.probe = { error: err.message };
+        }
+      }
+
+      return new Response(JSON.stringify(state, null, 2), {
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  },
+];
+
+export default { slot, routes };
