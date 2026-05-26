@@ -21,11 +21,12 @@
 
     var q = el.getAttribute("data-q");
     if (q) {
-      // ?type=hister crashes the Degoog streaming endpoint for custom engine
-      // types. The only reliable Hister-only path is the !hister bang command
-      // (commands route → searchSingleEngine), so we send the query there.
+      // Prefix the query with the engine type. Degoog's client-side performSearch
+      // detects "hister:" as a registered plugin tab (engineType from our tab
+      // export) and calls performTabSearch("bandcamp", "engine:hister") — the
+      // Hister tab — without starting a web SSE stream at all.
       window.location.replace(
-        "/search?q=" + encodeURIComponent("!hister " + q),
+        "/search?q=" + encodeURIComponent("hister:" + q),
       );
     }
   }
