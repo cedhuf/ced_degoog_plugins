@@ -95,7 +95,8 @@ async function _search(query, contextFetch, limit) {
     data.hits ??
     data.items ??
     (Array.isArray(data) ? data : []);
-  return _dedupe(Array.isArray(raw) ? raw : []);
+  // Return raw results — callers apply _dedupe as needed
+  return Array.isArray(raw) ? raw : [];
 }
 
 function _dedupe(results) {
@@ -173,13 +174,17 @@ export const interceptor = {
     // Cache hit — no need to fetch again
     if (_getCached(q)) return { query };
 
-    // Pre-fetch Hister to warm the cache for the slot (result not used here)
+    // Pre-fetch Hister to warm the cache for the slot.
+    // Use a large fixed limit so we get an accurate raw count for the threshold
+    // check — dedup can remove many results (same URL/title), so we compare
+    // against raw length before deduplication.
     try {
-      const results = await _search(q, context?.fetch, _histerFirstThreshold + 5);
+      const raw = await _search(q, context?.fetch, 50);
+      const activated = raw.length >= _histerFirstThreshold;
+      const results  = _dedupe(raw);
       console.log(
-        `[hister-slot] pre-fetched ${results.length} results for "${q}" (threshold=${_histerFirstThreshold})`,
+        `[hister-slot] pre-fetched ${raw.length} raw / ${results.length} unique for "${q}" — activated=${activated}`,
       );
-      const activated = results.length >= _histerFirstThreshold;
       _prefetchCache.set(q, { results, ts: Date.now(), activated });
     } catch (err) {
       console.log(`[hister-slot] pre-fetch failed: ${err.message}`);
@@ -328,7 +333,7 @@ export const slot = {
       results = cached.results;
     } else {
       try {
-        results = await _search(q, context?.fetch);
+        results = _dedupe(await _search(q, context?.fetch));
       } catch (err) {
         return {
           html: `<div class="hister-slot hister-error"><p>${_esc(err.message)}</p></div>`,
