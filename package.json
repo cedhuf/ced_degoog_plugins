@@ -44,6 +44,13 @@
   ],
   "engines": [
     {
+      "path": "engines/web-search",
+      "name": "Web Search Engine",
+      "description": "Combined Google, DuckDuckGo, and Bing engine — enable or disable each provider independently, with deduplication and configurable merge strategy.",
+      "version": "1.0.0",
+      "screenshots": []
+    },
+    {
       "path": "engines/hister-engine",
       "name": "Hister Engine",
       "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
