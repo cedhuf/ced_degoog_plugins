@@ -433,8 +433,8 @@ export const slot = {
     if (cfg.slotStyle === "inline") {
       return {
         html: `
+          ${banner}
           <div class="kk-slot kk-inline ${detail}">
-            ${banner}
             <div class="kk-results">${items}</div>
             ${footer}
           </div>`,
@@ -443,9 +443,9 @@ export const slot = {
 
     return {
       html: `
+        ${banner}
         <div class="kk-slot kk-card ${detail}">
           ${header}
-          ${banner}
           <div class="kk-results">${items}</div>
         </div>`,
     };
@@ -508,6 +508,10 @@ export const routes = [
         const q   = url.searchParams.get("q") || "";
         if (q) {
           _skipOnce.add(q);
+          // Deactivate the cache entry so the slot won't re-show the banner
+          // on the normal results page after the redirect.
+          const entry = _prefetchCache.get(q);
+          if (entry) _prefetchCache.set(q, { ...entry, activated: false });
           setTimeout(() => _skipOnce.delete(q), 60_000);
         }
         return new Response(null, {
