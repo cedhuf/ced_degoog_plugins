@@ -8,7 +8,7 @@
       "path": "plugins/hister-slot",
       "name": "Hister Slot",
       "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
-      "version": "2.6.2",
+      "version": "2.6.3",
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
@@ -18,7 +18,7 @@
       "path": "plugins/karakeep-slot",
       "name": "Karakeep Slot",
       "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog — shows an \"In your bookmarks\" panel alongside search results.",
-      "version": "2.6.1",
+      "version": "2.6.3",
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
