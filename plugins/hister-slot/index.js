@@ -156,6 +156,8 @@ function _renderResult(r) {
 
 export const interceptor = {
   isClientExposed: false,
+  name:            "Hister First",
+  description:     "Routes to the Hister tab when your history has enough results.",
 
   init(ctx) {
     _folderName = basename(ctx.dir);

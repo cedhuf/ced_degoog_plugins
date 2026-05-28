@@ -196,6 +196,8 @@ function _renderResult(b) {
 
 export const interceptor = {
   isClientExposed: false,
+  name:            "Karakeep First",
+  description:     "Routes to the Karakeep tab when your bookmarks have enough results.",
 
   init(ctx) {
     _folderName = basename(ctx.dir);
