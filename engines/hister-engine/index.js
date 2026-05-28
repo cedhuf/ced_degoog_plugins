@@ -3,14 +3,9 @@
 // The Hister Slot interceptor automatically routes searches to this tab when
 // enough history results are found — no manual tab switching needed.
 
-export const type = "web";
-
-// ── Tab ───────────────────────────────────────────────────────────────────────
-
-export const tab = {
-  name: "Hister",
-  engineType: "hister",
-};
+// "both" → ["web", "hister"] | "tab-only" → "hister" | "web-only" → "web"
+// Updated dynamically by configure() via the searchMode setting.
+export let type = ["web", "hister"];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -56,11 +51,27 @@ export default class HisterEngine {
         "Your Hister Access Token (Hister → Profile → Access Token). Required if your instance uses authentication.",
       secret: true,
     },
+    {
+      key: "searchMode",
+      label: "Visible in",
+      type: "select",
+      options: ["both", "tab-only", "web-only"],
+      default: "both",
+      description:
+        '"both" — web results + dedicated Hister tab · ' +
+        '"tab-only" — dedicated tab only · ' +
+        '"web-only" — web results only',
+    },
   ];
 
   configure(settings) {
-    _url = (settings.url || "").replace(/\/$/, "");
+    _url    = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
+
+    const mode = settings.searchMode || "both";
+    type = mode === "tab-only" ? "hister"
+         : mode === "web-only" ? "web"
+         : ["web", "hister"];
   }
 
   async executeSearch(query, page = 1, _timeFilter, context) {

@@ -9,14 +9,9 @@
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
-export const type = "web";
-
-// ── Tab ───────────────────────────────────────────────────────────────────────
-
-export const tab = {
-  name: "Karakeep",
-  engineType: "karakeep",
-};
+// "both" → ["web", "karakeep"] | "tab-only" → "karakeep" | "web-only" → "web"
+// Updated dynamically by configure() via the searchMode setting.
+export let type = ["web", "karakeep"];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -93,12 +88,28 @@ export default class KarakeepEngine {
       placeholder: "20",
       description: "Maximum number of bookmarks returned per search (1–50).",
     },
+    {
+      key: "searchMode",
+      label: "Visible in",
+      type: "select",
+      options: ["both", "tab-only", "web-only"],
+      default: "both",
+      description:
+        '"both" — web results + dedicated Karakeep tab · ' +
+        '"tab-only" — dedicated tab only · ' +
+        '"web-only" — web results only',
+    },
   ];
 
   configure(settings) {
-    _url = (settings.url || "").replace(/\/$/, "");
+    _url    = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
-    _limit = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
+    _limit  = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
+
+    const mode = settings.searchMode || "both";
+    type = mode === "tab-only" ? "karakeep"
+         : mode === "web-only" ? "web"
+         : ["web", "karakeep"];
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
