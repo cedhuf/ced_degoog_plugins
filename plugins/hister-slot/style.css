@@ -150,33 +150,45 @@
   -webkit-line-clamp: 1;
 }
 
-/* ── Hister First banner ─────────────────────────────────────────────────── */
+/* ── Hister First banner (global toast) ─────────────────────────────────── */
+/* position: fixed escapes the slot container without touching Degoog's DOM. */
 
 .hister-first-banner {
+  position: fixed;
+  bottom: 1.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 8px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--degoog-border, rgba(128, 128, 128, 0.15));
-  flex-wrap: wrap;
+  gap: 0.875rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--degoog-surface, var(--degoog-bg-secondary, #1e1e2e));
+  border: 1px solid var(--degoog-accent, var(--degoog-primary, #4a9eff));
+  border-radius: 2rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  font-size: 0.82rem;
+  animation: hister-banner-in 0.2s ease;
+}
+
+@keyframes hister-banner-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
 }
 
 .hister-first-info {
-  font-size: 0.73rem;
-  opacity: 0.55;
+  color: var(--degoog-text-secondary, var(--degoog-text-muted, #aaa));
 }
 
 .hister-first-all {
-  font-size: 0.73rem;
   color: var(--degoog-accent, var(--degoog-primary, #4a9eff));
   text-decoration: none;
-  opacity: 0.75;
+  font-weight: 500;
   white-space: nowrap;
   transition: opacity 0.15s;
 }
-.hister-first-all:hover { opacity: 1; text-decoration: underline; }
+.hister-first-all:hover { opacity: 0.8; text-decoration: underline; }
 
 /* ── Error ───────────────────────────────────────────────────────────────── */
 

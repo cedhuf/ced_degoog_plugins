@@ -410,8 +410,8 @@ export const slot = {
     if (cfg.slotStyle === "inline") {
       return {
         html: `
+          ${banner}
           <div class="hister-slot hister-inline ${detail}">
-            ${banner}
             <div class="hister-results">${items}</div>
             ${footer}
           </div>`,
@@ -420,9 +420,9 @@ export const slot = {
 
     return {
       html: `
+        ${banner}
         <div class="hister-slot hister-card ${detail}">
           ${header}
-          ${banner}
           <div class="hister-results">${items}</div>
         </div>`,
     };
