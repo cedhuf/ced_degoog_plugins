@@ -64,7 +64,17 @@ export default class HisterEngine {
   }
 
   async executeSearch(query, page = 1, _timeFilter, context) {
-    if (!_isConfigured()) return [];
+    // An empty tab is indistinguishable from a tab that never ran, so say why.
+    // Note the engine is configured in Settings > Engines, separately from the
+    // Hister plugin: having one set up says nothing about the other.
+    if (!_isConfigured()) {
+      console.warn(
+        "[hister-engine] no instance URL set, returning no results. " +
+          "Configure it in Settings > Engines > Hister.",
+      );
+      return [];
+    }
+
     const doFetch = context?.fetch ?? fetch;
     try {
       const q = encodeURIComponent(
@@ -73,7 +83,15 @@ export default class HisterEngine {
       const res = await doFetch(`${_url}/search?query=${q}`, {
         headers: _headers(),
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.warn(
+          `[hister-engine] ${_url} returned HTTP ${res.status}` +
+            (!_apiKey && [401, 403, 500].includes(res.status)
+              ? ". Your instance looks like it requires an access token."
+              : "."),
+        );
+        return [];
+      }
       const data = await res.json();
       const raw =
         data.Documents ??
@@ -97,7 +115,8 @@ export default class HisterEngine {
           source: this.name,
         }))
         .filter((r) => r.title && r.url);
-    } catch {
+    } catch (err) {
+      console.warn(`[hister-engine] search against ${_url} failed: ${err.message}`);
       return [];
     }
   }

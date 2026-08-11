@@ -47,7 +47,7 @@
       "path": "engines/hister-engine",
       "name": "Hister Engine",
       "description": "Native Hister search engine: results in a dedicated tab and via the `!hister` bang shortcut. Which tabs it feeds is set from Degoog's own engine type override.",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "screenshots": [
         "screenshots/screenshot.png"
       ]
@@ -56,7 +56,7 @@
       "path": "engines/karakeep-engine",
       "name": "Karakeep Engine",
       "description": "Native Karakeep bookmark search engine: results in a dedicated tab and via the `!karakeep` bang shortcut. Which tabs it feeds is set from Degoog's own engine type override.",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "screenshots": []
     }
   ],

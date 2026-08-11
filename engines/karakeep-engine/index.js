@@ -99,10 +99,13 @@ export default class KarakeepEngine {
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
+    // An empty tab is indistinguishable from a tab that never ran, so say why.
+    // Note the engine is configured in Settings > Engines, separately from the
+    // Karakeep plugin: having one set up says nothing about the other.
     if (!_isConfigured()) {
       console.warn(
-        "[karakeep-engine] Not configured — set URL and API Key in " +
-          "Settings → Engines → Karakeep Engine.",
+        "[karakeep-engine] no instance URL or API key set, returning no " +
+          "results. Configure it in Settings > Engines > Karakeep.",
       );
       return [];
     }
@@ -113,7 +116,17 @@ export default class KarakeepEngine {
       const res = await doFetch(`${_url}/api/v1/bookmarks/search?${params}`, {
         headers: _headers(),
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.warn(
+          `[karakeep-engine] ${_url} returned HTTP ${res.status}` +
+            (res.status === 500
+              ? ". This usually means Meilisearch is down or unreachable from Karakeep."
+              : res.status === 401 || res.status === 403
+                ? ". Check the API key."
+                : "."),
+        );
+        return [];
+      }
 
       const data = await res.json();
       const bookmarks = Array.isArray(data.bookmarks) ? data.bookmarks : [];
@@ -126,7 +139,8 @@ export default class KarakeepEngine {
           source: this.name,
         }))
         .filter((r) => r.title && r.url);
-    } catch {
+    } catch (err) {
+      console.warn(`[karakeep-engine] search against ${_url} failed: ${err.message}`);
       return [];
     }
   }
