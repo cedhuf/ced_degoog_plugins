@@ -6,9 +6,9 @@
   "plugins": [
     {
       "path": "plugins/hister-slot",
-      "name": "Hister Slot",
-      "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog — shows an \"In your index\" panel alongside search results.",
-      "version": "2.6.3",
+      "name": "Hister",
+      "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog: an \"In your index\" panel alongside search results, plus an optional Hister First mode that routes the search to the Hister tab when your history already answers it. Requires Degoog 0.24.0 or newer.",
+      "version": "3.0.0",
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
@@ -16,9 +16,9 @@
     },
     {
       "path": "plugins/karakeep-slot",
-      "name": "Karakeep Slot",
-      "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog — shows an \"In your bookmarks\" panel alongside search results.",
-      "version": "2.6.3",
+      "name": "Karakeep",
+      "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog: an \"In your bookmarks\" panel alongside search results, plus an optional Karakeep First mode that routes the search to the Karakeep tab when your bookmarks already answer it. Requires Degoog 0.24.0 or newer.",
+      "version": "3.0.0",
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
@@ -46,8 +46,8 @@
     {
       "path": "engines/hister-engine",
       "name": "Hister Engine",
-      "description": "Native Hister search engine — results in a dedicated tab and via the `!hister` bang shortcut.",
-      "version": "1.7.1",
+      "description": "Native Hister search engine: results in a dedicated tab and via the `!hister` bang shortcut. Which tabs it feeds is set from Degoog's own engine type override.",
+      "version": "2.0.0",
       "screenshots": [
         "screenshots/screenshot.png"
       ]
@@ -55,8 +55,8 @@
     {
       "path": "engines/karakeep-engine",
       "name": "Karakeep Engine",
-      "description": "Native Karakeep bookmark search engine — results in a dedicated tab and via the `!karakeep` bang shortcut.",
-      "version": "1.7.1",
+      "description": "Native Karakeep bookmark search engine: results in a dedicated tab and via the `!karakeep` bang shortcut. Which tabs it feeds is set from Degoog's own engine type override.",
+      "version": "2.0.0",
       "screenshots": []
     }
   ],

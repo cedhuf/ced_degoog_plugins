@@ -1,152 +1,146 @@
-// Karakeep Slot plugin for Degoog
-// Shows bookmarks from your personal Karakeep instance alongside search results.
+// Karakeep for Degoog
 //
-// "Karakeep First" mode: when enabled and enough bookmarks match, the interceptor
-// returns { overrides: { searchType: "karakeep" } } so Degoog routes the search
-// server-side to the dedicated Karakeep tab (requires Degoog develop).
-// The interceptor fetches synchronously but is capped to 2 s to avoid blocking
-// the search pipeline if Karakeep is slow or unreachable.
+// One plugin, two extension points, a single settings panel:
+//   - slot        renders an "In your bookmarks" panel next to the results
+//   - interceptor "Karakeep First" routes the search straight to the Karakeep
+//                 tab when your bookmarks already answer the query
+//
+// Both are grouped under the `plugin` manifest below, so Degoog registers them
+// as a single configurable entry (requires Degoog >= 0.24.0).
 //
 // Karakeep REST API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
-// Auth:             Authorization: Bearer <api-key>
-// Karakeep web UI:  /?q=<query>  (used for "View all" links)
+// Auth:              Authorization: Bearer <api-key>
+// Karakeep web UI:   /?q=<query>   (used for the "View all" links)
+// API docs:          https://docs.karakeep.app/api/karakeep-api/
 //
-// API docs: https://docs.karakeep.app/api/karakeep-api/
-// Requires Degoog develop (≥ 0.17.0 + interceptor overrides patch)
-// isClientExposed: false → all requests go through the Degoog server
+// isClientExposed: false, so every request goes through the Degoog server.
 
-import { basename } from "node:path";
+// ── Plugin manifest ───────────────────────────────────────────────────────────
+// Ties the slot and the interceptor to one id. Degoog stores their settings
+// under that id and hides the interceptor from the extension list.
 
-const cfg = {
-  url:          "",
-  apiKey:       "",
-  slotEnabled:  true,
-  slotPosition: "above-results",
-  slotLimit:    5,
-  slotStyle:    "inline",
-  slotDetail:   "snippet",
+export const plugin = {
+  id: "karakeep-slot",
+  name: "Karakeep",
+  description:
+    "Surfaces bookmarks from your self-hosted Karakeep instance inside Degoog.",
 };
 
-let _karakeepFirstEnabled   = false;
-let _karakeepFirstThreshold = 3;
-let _folderName             = "karakeep-slot";
+// ── State ─────────────────────────────────────────────────────────────────────
 
-// Shared cache: interceptor pre-fetches, slot serves from cache (no double fetch)
-const _prefetchCache = new Map(); // q → { results, ts, activated }
-const _skipOnce      = new Set(); // queries to let through normally once
-const PREFETCH_TTL   = 30_000;   // 30 s
+const cfg = {
+  url: "",
+  apiKey: "",
+  panelEnabled: true,
+  limit: 5,
+  style: "inline",
+  detail: "snippet",
+  firstEnabled: false,
+  firstThreshold: 3,
+};
+
+// Built by init() from ctx.routeUrl, so the plugin never has to guess its id.
+let _skipRoute = "/api/plugin/karakeep-slot/skip";
+
+// The interceptor pre-fetches, the slot serves from this cache. One Karakeep
+// round-trip per query instead of two.
+const _prefetchCache = new Map(); // query -> { results, ts, activated }
+const _skipOnce = new Set(); // queries to let through untouched, once
+const PREFETCH_TTL = 30_000;
+const PREFETCH_TIMEOUT = 2_000;
+const SKIP_TTL = 60_000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function _isConfigured() {
-  return Boolean(cfg.url && cfg.apiKey);
-}
+const _isConfigured = () => Boolean(cfg.url && cfg.apiKey);
 
-// Degoog can deliver toggle values as the string "false" — Boolean("false") is
-// true, which would silently enable features the user disabled. Use _bool() for
-// all settings that come from toggle/select fields.
-function _bool(v) {
-  if (v === true  || v === "true")  return true;
-  if (v === false || v === "false") return false;
-  return Boolean(v);
-}
+// Degoog stores toggles as the string "false", and Boolean("false") is true.
+const _bool = (v) => (v === true || v === "true" ? true : v === false || v === "false" ? false : Boolean(v));
 
-function _headers() {
-  return {
-    Accept:        "application/json",
-    Authorization: `Bearer ${cfg.apiKey}`,
-  };
-}
+const _clamp = (v, min, max, fallback) =>
+  Math.max(min, Math.min(max, parseInt(v, 10) || fallback));
 
-function _getCached(q) {
-  const e = _prefetchCache.get(q);
-  if (!e || Date.now() - e.ts > PREFETCH_TTL) {
-    _prefetchCache.delete(q);
-    return null;
-  }
-  return e;
-}
-
-function _esc(s) {
-  return String(s)
+const _esc = (s) =>
+  String(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+
+const _headers = () => ({
+  Accept: "application/json",
+  Authorization: `Bearer ${cfg.apiKey}`,
+});
+
+function _getCached(q) {
+  const entry = _prefetchCache.get(q);
+  if (!entry || Date.now() - entry.ts > PREFETCH_TTL) {
+    _prefetchCache.delete(q);
+    return null;
+  }
+  return entry;
+}
+
+// Karakeep error bodies carry the useful part, so surface it in the panel.
+function _errorFor(status, body) {
+  let detail = "";
+  try {
+    const parsed = JSON.parse(body);
+    detail = parsed.message || parsed.error || parsed.details || "";
+  } catch {
+    detail = body.slice(0, 200);
+  }
+  const suffix = detail ? ` Karakeep says: "${detail}"` : "";
+
+  if (status === 401 || status === 403)
+    return `Karakeep returned HTTP ${status} (unauthorized). Check your API key in Settings.${suffix}`;
+  if (status === 500)
+    return `Karakeep returned HTTP 500. This usually means Meilisearch, its search backend, is down or unreachable from your Karakeep instance. Check your Karakeep logs.${suffix}`;
+  return `Karakeep returned HTTP ${status}. Check the instance URL in Settings.${suffix}`;
 }
 
 async function _search(query, contextFetch, limit) {
   const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
-  const params  = new URLSearchParams({ q: query, limit: String(limit || 10) });
-  const res     = await doFetch(
-    `${cfg.url}/api/v1/bookmarks/search?${params}`,
-    { headers: _headers() },
-  );
+  const params = new URLSearchParams({ q: query, limit: String(limit || 10) });
+  const res = await doFetch(`${cfg.url}/api/v1/bookmarks/search?${params}`, {
+    headers: _headers(),
+  });
 
-  let body = "";
-  try { body = await res.text(); } catch { /* ignore */ }
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = JSON.parse(body);
-      detail = j.message || j.error || j.details || "";
-    } catch { detail = body.slice(0, 200); }
-
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(
-        `Karakeep returned HTTP ${res.status} (Unauthorized). ` +
-        `Check your API Key in Settings → Plugins → Karakeep Slot.` +
-        (detail ? ` — ${detail}` : ""),
-      );
-    }
-    if (res.status === 500) {
-      throw new Error(
-        `Karakeep returned HTTP 500. The most common cause is that ` +
-        `Meilisearch (the search backend) is not running or not reachable ` +
-        `by your Karakeep instance. Check your Karakeep logs and make sure ` +
-        `Meilisearch is healthy.` +
-        (detail ? ` Karakeep says: "${detail}"` : ""),
-      );
-    }
-    throw new Error(
-      `Karakeep returned HTTP ${res.status}. ` +
-      `Check the URL in Settings → Plugins → Karakeep Slot.` +
-      (detail ? ` — ${detail}` : ""),
-    );
-  }
+  const body = await res.text().catch(() => "");
+  if (!res.ok) throw new Error(_errorFor(res.status, body));
 
   let data;
-  try { data = JSON.parse(body); } catch {
+  try {
+    data = JSON.parse(body);
+  } catch {
     throw new Error("Karakeep returned an unexpected response (not JSON).");
   }
   return Array.isArray(data.bookmarks) ? data.bookmarks : [];
 }
 
-// ── Bookmark field extractors ─────────────────────────────────────────────────
+// ── Bookmark rendering ────────────────────────────────────────────────────────
 
-function _getTitle(b) {
-  return b.title || b.content?.title || b.content?.fileName || "Untitled";
-}
+const _title = (b) =>
+  b.title || b.content?.title || b.content?.fileName || "Untitled";
 
-function _getUrl(b) {
+function _url(b) {
   const c = b.content;
   if (!c) return null;
-  if (c.type === "link")  return c.url       || null;
-  if (c.type === "text")  return c.sourceUrl || null;
-  if (c.type === "asset") return c.sourceUrl || null;
+  if (c.type === "link") return c.url || null;
+  if (c.type === "text" || c.type === "asset") return c.sourceUrl || null;
   return null;
 }
 
-function _getSnippet(b) {
-  const s =
-    b.summary                                              ||
-    b.content?.description                                 ||
-    b.note                                                 ||
-    (b.content?.type === "text"  ? b.content.text    : "") ||
-    (b.content?.type === "asset" ? b.content.content : "") ||
-    "";
-  return s.slice(0, 280);
+function _snippet(b) {
+  const c = b.content;
+  return (
+    b.summary ||
+    c?.description ||
+    b.note ||
+    (c?.type === "text" ? c.text : "") ||
+    (c?.type === "asset" ? c.content : "") ||
+    ""
+  ).slice(0, 280);
 }
 
 function _renderTags(tags) {
@@ -159,62 +153,245 @@ function _renderTags(tags) {
 }
 
 function _renderResult(b) {
-  const title   = _getTitle(b);
-  const url     = _getUrl(b);
-  const snippet = cfg.slotDetail !== "title" ? _getSnippet(b) : "";
-  const tags    = cfg.slotDetail === "full"  ? _renderTags(b.tags) : "";
-
-  const favicon =
-    b.content?.favicon
-      ? `<img class="kk-favicon" src="${_esc(b.content.favicon)}" ` +
-        `alt="" width="14" height="14" loading="lazy">`
-      : "";
-
-  const urlLine =
-    url && cfg.slotDetail === "full"
-      ? `<div class="kk-result-url">${_esc(url)}</div>`
-      : "";
+  const url = _url(b);
+  const title = _title(b);
+  const snippet = cfg.detail !== "title" ? _snippet(b) : "";
+  const tags = cfg.detail === "full" ? _renderTags(b.tags) : "";
+  const favicon = b.content?.favicon
+    ? `<img class="kk-favicon" src="${_esc(b.content.favicon)}" alt="" width="14" height="14" loading="lazy">`
+    : "";
 
   const titleEl = url
-    ? `<a class="kk-result-title" href="${_esc(url)}" target="_blank" ` +
-      `rel="noopener">${favicon}${_esc(title)}</a>`
+    ? `<a class="kk-result-title" href="${_esc(url)}" target="_blank" rel="noopener">${favicon}${_esc(title)}</a>`
     : `<span class="kk-result-title">${favicon}${_esc(title)}</span>`;
 
   return `
     <div class="kk-result">
       ${titleEl}
-      ${urlLine}
+      ${url && cfg.detail === "full" ? `<div class="kk-result-url">${_esc(url)}</div>` : ""}
       ${snippet ? `<div class="kk-result-snippet">${_esc(snippet)}</div>` : ""}
       ${tags}
     </div>`;
 }
 
-// ── Interceptor ───────────────────────────────────────────────────────────────
-// Karakeep First: fetches bookmarks before the search runs to decide whether
-// to route to the dedicated Karakeep tab. Capped at 2 s so a slow/unreachable
-// Karakeep never blocks the search pipeline and triggers "Search failed".
+// ── Slot ──────────────────────────────────────────────────────────────────────
+// Owns the whole settings schema. The interceptor reads the same `cfg` object,
+// so a single configure() keeps both sides in sync.
 
-export const interceptor = {
+export const slot = {
+  name: "Karakeep",
+  description:
+    "Shows bookmarks from your Karakeep instance alongside search results.",
   isClientExposed: false,
-  name:            "Karakeep First",
-  description:     "Routes to the Karakeep tab when your bookmarks have enough results.",
+  position: "above-results",
+  // Degoog renders the "Position" select from this list on its own.
+  slotPositions: [
+    "above-results",
+    "full-width-above-results",
+    "below-results",
+    "knowledge-panel",
+    "above-sidebar",
+    "below-sidebar",
+  ],
+
+  settingsSchema: [
+    {
+      key: "url",
+      label: "Karakeep instance URL",
+      type: "url",
+      required: true,
+      fieldset: "Connection",
+      placeholder: "https://karakeep.example.com",
+      description: "Base URL of your Karakeep instance, with no trailing slash.",
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      type: "password",
+      required: true,
+      secret: true,
+      fieldset: "Connection",
+      placeholder: "your-api-key",
+      description: "Generate one in Karakeep under Settings > API Keys.",
+    },
+
+    {
+      key: "panelEnabled",
+      label: 'Show the "In your bookmarks" panel',
+      type: "toggle",
+      default: true,
+      fieldset: "Panel",
+      description:
+        "Display matching bookmarks next to the Degoog results.",
+    },
+    {
+      key: "style",
+      label: "Display style",
+      type: "select",
+      options: ["inline", "card"],
+      default: "inline",
+      fieldset: "Panel",
+      description:
+        "inline blends with the native results, card is a compact bordered panel.",
+    },
+    {
+      key: "detail",
+      label: "Detail level",
+      type: "select",
+      options: ["title", "snippet", "full"],
+      default: "snippet",
+      fieldset: "Panel",
+      description:
+        "title is the link only, snippet adds the AI summary, full adds the URL and tags.",
+    },
+    {
+      key: "limit",
+      label: "Results in the panel",
+      type: "range",
+      min: "1",
+      max: "20",
+      step: "1",
+      default: "5",
+      fieldset: "Panel",
+      description: "How many bookmarks the panel lists at most.",
+    },
+
+    {
+      key: "firstEnabled",
+      label: "Karakeep First",
+      type: "toggle",
+      default: false,
+      fieldset: "Karakeep First",
+      description:
+        "When your bookmarks already answer the query, send the search straight " +
+        "to the Karakeep tab instead of the web engines. A banner always offers " +
+        "a way back to the full results.",
+    },
+    {
+      key: "firstThreshold",
+      label: "Minimum results to trigger",
+      type: "range",
+      min: "1",
+      max: "50",
+      step: "1",
+      default: "3",
+      fieldset: "Karakeep First",
+      visibleWhen: { key: "firstEnabled", equals: "true" },
+      description: "How many matching bookmarks it takes to redirect.",
+    },
+  ],
+
+  configure(settings) {
+    cfg.url = (settings.url || "").replace(/\/$/, "");
+    cfg.apiKey = settings.apiKey || "";
+    cfg.panelEnabled =
+      settings.panelEnabled === undefined ? true : _bool(settings.panelEnabled);
+    cfg.style = settings.style === "card" ? "card" : "inline";
+    cfg.detail = ["title", "snippet", "full"].includes(settings.detail)
+      ? settings.detail
+      : "snippet";
+    cfg.limit = _clamp(settings.limit, 1, 20, 5);
+    cfg.firstEnabled = _bool(settings.firstEnabled ?? false);
+    cfg.firstThreshold = _clamp(settings.firstThreshold, 1, 50, 3);
+  },
 
   init(ctx) {
-    _folderName = basename(ctx.dir);
+    _skipRoute = ctx.routeUrl("/skip");
   },
+
+  trigger(query) {
+    // Bang pages such as ?q=!karakeep+rust would otherwise search Karakeep for
+    // the literal "!karakeep rust" string.
+    if (query && /^!/.test(query.trim())) return false;
+    return _isConfigured() && cfg.panelEnabled;
+  },
+
+  async execute(query, context) {
+    const q = query.trim();
+
+    const cached = _getCached(q);
+    let bookmarks = cached?.results;
+
+    if (!bookmarks) {
+      try {
+        bookmarks = await _search(q, context?.fetch, cfg.limit);
+      } catch (err) {
+        return {
+          html: `<div class="kk-slot kk-error">${_esc(err.message)}</div>`,
+        };
+      }
+    }
+
+    const displayed = bookmarks.slice(0, cfg.limit);
+    if (!displayed.length) return { html: "" };
+
+    const total = bookmarks.length;
+    const viewAll = `${cfg.url}/?q=${encodeURIComponent(q)}`;
+    const items = displayed.map(_renderResult).join("");
+
+    // Only shown once Karakeep First actually redirected, so the user can opt
+    // out of this one search. Rendered as a sibling of the panel: style.css
+    // pins it as a fixed toast, which is what makes it readable page-wide.
+    const banner =
+      cfg.firstEnabled && cached?.activated
+        ? `
+      <div class="kk-first-banner">
+        <span class="kk-first-info">${total} bookmark${total !== 1 ? "s" : ""} found</span>
+        <a class="kk-first-all" href="${_esc(`${_skipRoute}?q=${encodeURIComponent(q)}`)}">Search all engines &rarr;</a>
+      </div>`
+        : "";
+
+    const viewAllLink = `<a class="kk-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all &rarr;</a>`;
+
+    if (cfg.style === "card") {
+      return {
+        html: `${banner}
+        <div class="kk-slot kk-card kk-detail-${cfg.detail}">
+          <div class="kk-slot-header">
+            <span class="kk-dot" aria-hidden="true">&bull;</span>
+            <span class="kk-slot-label">Karakeep</span>
+            ${viewAllLink}
+          </div>
+          <div class="kk-results">${items}</div>
+        </div>`,
+      };
+    }
+
+    return {
+      html: `${banner}
+      <div class="kk-slot kk-inline kk-detail-${cfg.detail}">
+        <div class="kk-results">${items}</div>
+        <div class="kk-footer">
+          <span class="kk-dot" aria-hidden="true">&bull;</span>
+          <span class="kk-footer-label">Karakeep</span>
+          ${viewAllLink}
+        </div>
+      </div>`,
+    };
+  },
+};
+
+// ── Interceptor ───────────────────────────────────────────────────────────────
+// No settingsSchema and no configure(): it shares `cfg` with the slot, and the
+// manifest already routes both to the same settings panel.
+
+export const interceptor = {
+  name: "Karakeep First",
+  description:
+    "Routes the search to the Karakeep tab when your bookmarks have enough results.",
+  isClientExposed: false,
 
   async intercept(query, context) {
     const q = query.trim();
+    if (!q || /^!/.test(q) || !cfg.firstEnabled || !_isConfigured())
+      return { query };
 
-    // Skip: bang command, feature disabled, or not configured
-    if (!q || /^!/.test(q) || !_karakeepFirstEnabled || !_isConfigured()) {
+    // The user just clicked "Search all engines", let this one through.
+    if (_skipOnce.has(q)) {
+      _skipOnce.delete(q);
       return { query };
     }
 
-    // User clicked "Search all engines →" — pass through once
-    if (_skipOnce.has(q)) { _skipOnce.delete(q); return { query }; }
-
-    // Cache hit — routing decision is already known, no need to fetch again
     const cached = _getCached(q);
     if (cached) {
       return cached.activated
@@ -222,233 +399,22 @@ export const interceptor = {
         : { query };
     }
 
-    // Fetch with a 2 s hard cap — prevents hanging the search pipeline when
-    // Karakeep is slow or unreachable. On timeout we fall through to { query }.
+    // Hard timeout: a slow or unreachable Karakeep must never stall the search.
     try {
       const results = await Promise.race([
         _search(q, context?.fetch, 50),
-        new Promise((_, rej) =>
-          setTimeout(() => rej(new Error("prefetch timeout")), 2000),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), PREFETCH_TIMEOUT),
         ),
       ]);
-      const activated = results.length >= _karakeepFirstThreshold;
+      const activated = results.length >= cfg.firstThreshold;
       _prefetchCache.set(q, { results, ts: Date.now(), activated });
-      console.log(
-        `[karakeep-slot] prefetch ${results.length} bookmarks for "${q}" — activated=${activated}`,
-      );
-      if (activated) {
-        return { query, overrides: { searchType: "karakeep" } };
-      }
+      if (activated) return { query, overrides: { searchType: "karakeep" } };
     } catch (err) {
-      console.log(`[karakeep-slot] prefetch skipped: ${err.message}`);
+      console.warn(`[karakeep] prefetch skipped: ${err.message}`);
     }
 
     return { query };
-  },
-};
-
-// ── Slot ──────────────────────────────────────────────────────────────────────
-
-export const slot = {
-  id:          "karakeep-slot",
-  name:        "Karakeep Slot",
-  description: "Shows bookmarks from your personal Karakeep instance alongside search results.",
-  position:    "above-results",
-  isClientExposed: false,
-
-  settingsSchema: [
-    {
-      key:         "url",
-      label:       "Karakeep Instance URL",
-      type:        "url",
-      required:    true,
-      placeholder: "https://karakeep.example.com",
-      description: "Base URL of your Karakeep instance (no trailing slash).",
-    },
-    {
-      key:         "apiKey",
-      label:       "API Key",
-      type:        "password",
-      required:    true,
-      placeholder: "your-api-key",
-      description:
-        "Your Karakeep API key — generate one in Karakeep → Settings → API Keys.",
-      secret: true,
-    },
-    {
-      key:     "slotEnabled",
-      label:   'Show "In your bookmarks" panel',
-      type:    "toggle",
-      default: true,
-      description: "Display matching bookmarks alongside Degoog search results.",
-    },
-    {
-      key:     "slotPosition",
-      label:   "Panel position",
-      type:    "select",
-      options: ["above-results", "below-results", "knowledge-panel", "above-sidebar"],
-      default: "above-results",
-      description: "Where to display the Karakeep panel on the results page.",
-    },
-    {
-      key:     "slotStyle",
-      label:   "Display style",
-      type:    "select",
-      options: ["inline", "card"],
-      default: "inline",
-      description:
-        "inline — blends with native results · card — compact bordered panel",
-    },
-    {
-      key:     "slotDetail",
-      label:   "Detail level",
-      type:    "select",
-      options: ["title", "snippet", "full"],
-      default: "snippet",
-      description:
-        "title — link only · snippet — title + AI summary/excerpt · full — title + URL + excerpt + tags",
-    },
-    {
-      key:         "slotLimit",
-      label:       "Results to show in panel",
-      type:        "text",
-      default:     "5",
-      placeholder: "5",
-      description: "Maximum number of Karakeep bookmarks displayed in the panel (1–20).",
-    },
-    // ── Karakeep First ────────────────────────────────────────────────────────
-    {
-      key:     "karakeepFirst",
-      label:   "Karakeep First mode",
-      type:    "toggle",
-      default: false,
-      description:
-        "When your Karakeep bookmarks have enough results, automatically route the " +
-        "search to the dedicated Karakeep tab instead of global search. The slot " +
-        "panel still shows a \"Search all engines →\" link to opt out.",
-    },
-    {
-      key:         "karakeepFirstThreshold",
-      label:       "Minimum results to activate",
-      type:        "text",
-      default:     "3",
-      placeholder: "3",
-      description:
-        "Minimum number of Karakeep bookmarks needed to activate Karakeep First " +
-        "routing (1–50).",
-    },
-  ],
-
-  configure(settings) {
-    cfg.url       = (settings.url || "").replace(/\/$/, "");
-    cfg.apiKey    = settings.apiKey || "";
-    // Use explicit _bool() — Degoog can store toggle values as the string "false"
-    cfg.slotEnabled  = settings.slotEnabled === undefined ? true : _bool(settings.slotEnabled);
-    cfg.slotPosition = settings.slotPosition || "above-results";
-    cfg.slotStyle    = settings.slotStyle === "card" ? "card" : "inline";
-    cfg.slotDetail   = ["title", "snippet", "full"].includes(settings.slotDetail)
-      ? settings.slotDetail
-      : "snippet";
-    cfg.slotLimit = Math.max(1, Math.min(20, parseInt(settings.slotLimit, 10) || 5));
-    slot.position = cfg.slotPosition;
-
-    _karakeepFirstEnabled   = _bool(settings.karakeepFirst ?? false);
-    _karakeepFirstThreshold = Math.max(
-      1,
-      Math.min(50, parseInt(settings.karakeepFirstThreshold || "3", 10)),
-    );
-  },
-
-  init(ctx) {
-    _folderName = basename(ctx.dir);
-  },
-
-  trigger(query) {
-    if (query && /^!/.test(query.trim())) return false;
-    const ok = _isConfigured() && cfg.slotEnabled;
-    if (!ok) {
-      console.log(
-        `[karakeep-slot] trigger=false — configured=${_isConfigured()} slotEnabled=${cfg.slotEnabled} url="${cfg.url}" hasKey=${Boolean(cfg.apiKey)}`,
-      );
-    }
-    return ok;
-  },
-
-  async execute(query, context) {
-    const q = query.trim();
-    console.log(`[karakeep-slot] execute q="${q}" cacheHit=${Boolean(_getCached(q))}`);
-
-    // Use pre-fetched cache when available — no double Karakeep round-trip
-    const cached = _getCached(q);
-    let bookmarks;
-    if (cached) {
-      bookmarks = cached.results;
-      console.log(`[karakeep-slot] served ${bookmarks.length} from cache`);
-    } else {
-      try {
-        bookmarks = await _search(q, context?.fetch, cfg.slotLimit);
-        console.log(`[karakeep-slot] fetched ${bookmarks.length} bookmarks`);
-      } catch (err) {
-        console.log(`[karakeep-slot] fetch error: ${err.message}`);
-        return {
-          html: `<div class="kk-slot kk-error"><p>${_esc(err.message)}</p></div>`,
-        };
-      }
-    }
-
-    const displayed = bookmarks.slice(0, cfg.slotLimit);
-    console.log(`[karakeep-slot] displaying ${displayed.length} / ${bookmarks.length}`);
-    if (!displayed.length) return { html: "" };
-
-    // Show banner when Karakeep First routed this search to the Karakeep tab
-    const karakeepFirst = _karakeepFirstEnabled && (cached?.activated ?? false);
-    const total   = bookmarks.length;
-    const viewAll = `${cfg.url}/?q=${encodeURIComponent(q)}`;
-    const skipUrl = `/api/plugin/${_folderName}/skip?q=${encodeURIComponent(q)}`;
-    const items   = displayed.map(_renderResult).join("");
-    const detail  = `kk-detail-${cfg.slotDetail}`;
-
-    const banner = karakeepFirst
-      ? `
-        <div class="kk-first-banner">
-          <span class="kk-first-info">${total} bookmark${total !== 1 ? "s" : ""} found</span>
-          <a class="kk-first-all" href="${_esc(skipUrl)}">Search all engines →</a>
-        </div>`
-      : "";
-
-    const footer = `
-      <div class="kk-footer">
-        <span class="kk-dot" aria-hidden="true">●</span>
-        <span class="kk-footer-label">Karakeep</span>
-        <a class="kk-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
-      </div>`;
-
-    const header = `
-      <div class="kk-slot-header">
-        <span class="kk-dot" aria-hidden="true">●</span>
-        <span class="kk-slot-label">Karakeep</span>
-        <a class="kk-slot-viewall" href="${_esc(viewAll)}" target="_blank" rel="noopener">View all →</a>
-      </div>`;
-
-    if (cfg.slotStyle === "inline") {
-      return {
-        html: `
-          ${banner}
-          <div class="kk-slot kk-inline ${detail}">
-            <div class="kk-results">${items}</div>
-            ${footer}
-          </div>`,
-      };
-    }
-
-    return {
-      html: `
-        ${banner}
-        <div class="kk-slot kk-card ${detail}">
-          ${header}
-          <div class="kk-results">${items}</div>
-        </div>`,
-    };
   },
 };
 
@@ -456,73 +422,32 @@ export const slot = {
 
 export const routes = [
   {
-    // GET /api/plugin/karakeep-slot/debug
+    // Opts this query out of Karakeep First, then bounces to a normal search.
     method: "get",
-    path:   "/debug",
-    async handler(_req) {
-      const state = {
-        configured:        _isConfigured(),
-        url:               cfg.url ? cfg.url.replace(/^https?:\/\//, "").split("/")[0] : null,
-        slotEnabled:       cfg.slotEnabled,
-        slotLimit:         cfg.slotLimit,
-        karakeepFirst:     _karakeepFirstEnabled,
-        threshold:         _karakeepFirstThreshold,
-        folderName:        _folderName,
-        cacheSize:         _prefetchCache.size,
-        skipOnceSize:      _skipOnce.size,
-      };
-
-      if (_isConfigured()) {
-        try {
-          const params = new URLSearchParams({ q: "test", limit: "1" });
-          const res    = await fetch(`${cfg.url}/api/v1/bookmarks/search?${params}`, {
-            headers: _headers(),
-          });
-          let bodySnippet = "";
-          try { bodySnippet = (await res.text()).slice(0, 300); } catch { /* ignore */ }
-          state.probe = { status: res.status, ok: res.ok, body: bodySnippet };
-          if (res.status === 500) {
-            state.hint =
-              "HTTP 500 from Karakeep usually means Meilisearch is not running " +
-              "or not reachable. Check your Karakeep server logs.";
-          }
-        } catch (err) {
-          state.probe = { error: err.message };
-        }
+    path: "/skip",
+    handler(req) {
+      let q = "";
+      try {
+        q = new URL(req.url).searchParams.get("q") || "";
+      } catch {
+        // Fall through to the home page below.
       }
 
-      return new Response(JSON.stringify(state, null, 2), {
-        headers: { "Content-Type": "application/json" },
+      if (q) {
+        _skipOnce.add(q);
+        // Clear the activation flag too, otherwise the slot re-renders the
+        // banner on the all-engines page we are about to redirect to.
+        const entry = _prefetchCache.get(q);
+        if (entry) _prefetchCache.set(q, { ...entry, activated: false });
+        setTimeout(() => _skipOnce.delete(q), SKIP_TTL);
+      }
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: q ? `/search?q=${encodeURIComponent(q)}` : "/",
+        },
       });
     },
   },
-  {
-    // GET /api/plugin/karakeep-slot/skip?q=<query>
-    // Marks the query as skip-once so the interceptor won't activate on the
-    // next search, then redirects to a normal Degoog search (all engines).
-    method: "get",
-    path:   "/skip",
-    handler(req) {
-      try {
-        const url = new URL(req.url);
-        const q   = url.searchParams.get("q") || "";
-        if (q) {
-          _skipOnce.add(q);
-          // Deactivate the cache entry so the slot won't re-show the banner
-          // on the normal results page after the redirect.
-          const entry = _prefetchCache.get(q);
-          if (entry) _prefetchCache.set(q, { ...entry, activated: false });
-          setTimeout(() => _skipOnce.delete(q), 60_000);
-        }
-        return new Response(null, {
-          status:  302,
-          headers: { Location: `/search?q=${encodeURIComponent(q)}` },
-        });
-      } catch {
-        return new Response(null, { status: 302, headers: { Location: "/" } });
-      }
-    },
-  },
 ];
-
-export default { slot, interceptor, routes };

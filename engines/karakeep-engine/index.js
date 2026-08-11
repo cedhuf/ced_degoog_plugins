@@ -1,17 +1,19 @@
 // Karakeep Engine for Degoog
 // Results appear in a dedicated "Karakeep" tab and via the !karakeep bang shortcut.
-// The Karakeep Slot interceptor automatically routes searches to this tab when
-// enough bookmark results are found — no manual tab switching needed.
+// The Karakeep plugin's "Karakeep First" interceptor routes searches to this
+// tab when enough bookmarks match, so no manual tab switching is needed.
 //
-// NOTE: Configure this engine separately in Settings → Engines → Karakeep Engine.
-//       The Karakeep Slot has its own settings — they are NOT shared.
+// NOTE: this engine is configured in Settings > Engines > Karakeep. Degoog keeps
+//       engines and plugins in separate registries, so the URL and API key here
+//       are NOT shared with the Karakeep plugin.
 //
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
-// "both" → ["web", "karakeep"] | "tab-only" → "karakeep" | "web-only" → "web"
-// Updated dynamically by configure() via the searchMode setting.
-export let type = ["web", "karakeep"];
+// Declared once at import time — Degoog snapshots this value and does not
+// re-read it. To show Karakeep in only one of the two, use the engine's native
+// type override in Settings → Engines rather than editing this line.
+export const type = ["web", "karakeep"];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -86,30 +88,14 @@ export default class KarakeepEngine {
       type: "text",
       default: "20",
       placeholder: "20",
-      description: "Maximum number of bookmarks returned per search (1–50).",
-    },
-    {
-      key: "searchMode",
-      label: "Visible in",
-      type: "select",
-      options: ["both", "tab-only", "web-only"],
-      default: "both",
-      description:
-        '"both" — web results + dedicated Karakeep tab · ' +
-        '"tab-only" — dedicated tab only · ' +
-        '"web-only" — web results only',
+      description: "Maximum number of bookmarks returned per search (1-50).",
     },
   ];
 
   configure(settings) {
-    _url    = (settings.url || "").replace(/\/$/, "");
+    _url = (settings.url || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
-    _limit  = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
-
-    const mode = settings.searchMode || "both";
-    type = mode === "tab-only" ? "karakeep"
-         : mode === "web-only" ? "web"
-         : ["web", "karakeep"];
+    _limit = Math.max(1, Math.min(50, parseInt(settings.limit || "20", 10)));
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
