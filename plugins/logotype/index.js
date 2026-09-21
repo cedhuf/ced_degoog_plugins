@@ -69,21 +69,6 @@ const _saveWordmark = async (config) => {
 
 let hideLogoManagement = false;
 let logoIntro = "none";
-let settingsLoaded = false;
-
-const _loadSettings = async () => {
-  if (settingsLoaded) return;
-  settingsLoaded = true;
-  try {
-    const raw = await readFile(join(process.cwd(), "data", "plugin-settings.json"), "utf-8");
-    const s = JSON.parse(raw)?.["plugin-logotype"];
-    if (s) {
-      hideLogoManagement = s.hideLogoManagement === true || s.hideLogoManagement === "true";
-      logoIntro = ["none","fade","matrix"].includes(s.logoIntro) ? s.logoIntro : "none";
-    }
-  } catch {}
-};
-_loadSettings().catch(() => {});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +78,12 @@ function _esc(s) {
 
 function _validHex(v) {
   return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : null;
+}
+
+// Parsed request body, or the error Response to return as-is.
+async function _guardedBody(req, what = "Logo") {
+  if (hideLogoManagement) return Response.json({ error: `${what} management is disabled` }, { status: 403 });
+  try { return (await req.json()) ?? {}; } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
 }
 
 // SVG icon strings for decorator chips (chip-sized)
@@ -131,11 +122,9 @@ export default {
   configure(settings) {
     hideLogoManagement = settings?.hideLogoManagement === true || settings?.hideLogoManagement === "true";
     logoIntro = ["none","fade","matrix"].includes(settings?.logoIntro) ? settings.logoIntro : "none";
-    settingsLoaded = true;
   },
 
   async execute() {
-    await _loadSettings();
 
     if (hideLogoManagement) {
       return {
@@ -186,7 +175,7 @@ export default {
     const solidSwatches = SOLID_PRESETS.map(c =>
       `<button class="lt-swatch${colorType === "solid" && wmColor.value === c ? " active" : ""}" data-color="${c}" style="background:${c};" title="${c}"></button>`
     ).join("") +
-    `<label class="lt-swatch lt-swatch-custom" title="Custom color"><input id="lt-solid-custom" type="color" value="${colorType === "solid" ? solidVal : "#4a9eff'"}"/><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></label>`;
+    `<label class="lt-swatch lt-swatch-custom" title="Custom color"><input id="lt-solid-custom" type="color" value="${colorType === "solid" ? solidVal : "#4a9eff"}"/><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></label>`;
 
     // Gradient preset swatches
     const gradSwatches = GRADIENT_PRESETS.map(g =>
@@ -342,64 +331,38 @@ export default {
   routes: [
     {
       method: "get",
-      path: "/settings",
+      path: "/state",
       handler: async () => {
-        await _loadSettings();
-        return new Response(JSON.stringify({ hideLogoManagement, logoIntro }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
-      },
-    },
-    {
-      method: "get",
-      path: "/logo",
-      handler: async () => {
-        const data = await _load();
-        return new Response(JSON.stringify({ dataUrl: data ?? null }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        const [dataUrl, wordmark, dims] = await Promise.all([_load(), _loadWordmark(), _loadDimensions()]);
+        return Response.json({ dataUrl, wordmark, dims, logoIntro });
       },
     },
     {
       method: "post",
       path: "/logo",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Logo management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
-        let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
-        const { dataUrl } = body ?? {};
-        if (dataUrl === null || dataUrl === "") { try { await unlink(LOGO_PATH); } catch {} return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }); }
-        if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return new Response(JSON.stringify({ error: "Invalid image data" }), { status: 400, headers: { "Content-Type": "application/json" } });
-        if (dataUrl.length > 2 * 1024 * 1024 * 1.37) return new Response(JSON.stringify({ error: "Image too large (max 2 MB)" }), { status: 413, headers: { "Content-Type": "application/json" } });
+        const body = await _guardedBody(req);
+        if (body instanceof Response) return body;
+        const { dataUrl } = body;
+        if (dataUrl === null || dataUrl === "") { try { await unlink(LOGO_PATH); } catch {} return Response.json({ ok: true }); }
+        if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return Response.json({ error: "Invalid image data" }, { status: 400 });
+        if (dataUrl.length > 2 * 1024 * 1024 * 1.37) return Response.json({ error: "Image too large (max 2 MB)" }, { status: 413 });
         await _save(dataUrl);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
-      },
-    },
-    {
-      method: "get",
-      path: "/wordmark",
-      handler: async () => {
-        const wm = await _loadWordmark();
-        return new Response(JSON.stringify(wm ?? { text: null }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        return Response.json({ ok: true });
       },
     },
     {
       method: "post",
       path: "/wordmark",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Logo management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
-        let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
-        const text = (body?.text ?? "").trim().slice(0, 80);
-        if (!text) { try { await unlink(WM_PATH); } catch {} return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }); }
-        const font = FONT_IDS.has(body?.font) ? body.font : "outfit";
+        const body = await _guardedBody(req);
+        if (body instanceof Response) return body;
+        const text = (body.text ?? "").trim().slice(0, 80);
+        if (!text) { try { await unlink(WM_PATH); } catch {} return Response.json({ ok: true }); }
+        const font = FONT_IDS.has(body.font) ? body.font : "outfit";
 
         // Validate color
-        const rawColor = body?.color || {};
+        const rawColor = body.color || {};
         const colorType = VALID_COLOR_TYPES.includes(rawColor.type) ? rawColor.type : "none";
         let color;
         if (colorType === "solid") {
@@ -416,48 +379,34 @@ export default {
         }
 
         // Validate decorator
-        const rawDec = body?.decorator || {};
+        const rawDec = body.decorator || {};
         const decType = VALID_DEC_TYPES.includes(rawDec.type)    ? rawDec.type     : "none";
         const decPos  = VALID_DEC_POS.includes(rawDec.position)  ? rawDec.position : "before";
         const decorator = { type: decType, position: decPos };
 
         await _saveWordmark({ text, font, color, decorator });
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
     {
       method: "post",
       path: "/reset",
       handler: async () => {
+        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
         await Promise.allSettled([unlink(LOGO_PATH), unlink(WM_PATH), unlink(DIMS_PATH)]);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
-      },
-    },
-    {
-      method: "get",
-      path: "/dimensions",
-      handler: async () => {
-        const dims = await _loadDimensions();
-        return new Response(JSON.stringify(dims), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
     {
       method: "post",
       path: "/dimensions",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Dimension management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
-        let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
+        const body = await _guardedBody(req, "Dimension");
+        if (body instanceof Response) return body;
         const _n = (v, fb) => { const n = parseInt(v, 10); return !isNaN(n) && n > 0 ? n : fb; };
-        const dims = {
-          homeMaxHeight:   _n(body?.homeMaxHeight, 300),
-          homeMaxWidth:    _n(body?.homeMaxWidth,  500),
-          searchMaxHeight: _n(body?.searchMaxHeight, 100),
-          searchMaxWidth:  _n(body?.searchMaxWidth,  300),
-        };
+        const dims = Object.fromEntries(Object.entries(DEFAULT_DIMS).map(([k, fb]) => [k, _n(body[k], fb)]));
         await _saveDimensions(dims);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
   ],

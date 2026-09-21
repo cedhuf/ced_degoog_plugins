@@ -52,7 +52,6 @@ function _buildRules() {
 // ── Slot ──────────────────────────────────────────────────────────────────────
 
 export const slot = {
-  id:          "ohmyclean",
   name:        "OhMyClean",
   description: "Selectively hide or replace Degoog UI elements — footer, settings gear, search buttons.",
   position:    "above-results",
@@ -124,17 +123,10 @@ export const routes = [
     path: "/config",
     handler(_req) {
       return new Response(
-        JSON.stringify({
-          hideFooter:      cfg.hideFooter,
-          hideNavSettings: cfg.hideNavSettings,
-          hideLogo:        cfg.hideLogo,
-          buttons:         cfg.buttons,
-          css:             _buildRules(),
-        }),
+        JSON.stringify({ buttons: cfg.buttons, css: _buildRules() }),
         { headers: { "Content-Type": "application/json" } },
       );
     },
   },
 ];
 
-export default { slot, routes };

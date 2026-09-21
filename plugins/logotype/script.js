@@ -37,51 +37,30 @@
   _searchHideStyle.textContent = "#search-bar-home, .button-row { clip-path: inset(0 100% 0 0); }";
   document.head.appendChild(_searchHideStyle);
 
-  let _cachedDataUrl  = undefined;
-  let _cachedWordmark = undefined;
+  const DEFAULT_DIMS = { homeMaxHeight: 300, homeMaxWidth: 500, searchMaxHeight: 100, searchMaxWidth: 300 };
+  const DIM_INPUTS = { homeMaxHeight: "#lt-home-h", homeMaxWidth: "#lt-home-w", searchMaxHeight: "#lt-search-h", searchMaxWidth: "#lt-search-w" };
+
+  let _cachedDataUrl  = null;
+  let _cachedWordmark = null;
   let _logoIntro = "none";
   let _introPlayed = false;
-  let _searchMaxHeight = 100, _searchMaxWidth = 300;
-  let _homeMaxHeight   = 300, _homeMaxWidth   = 500;
-  let _dimensionsLoaded = false;
-  let _settingsPromise = null;
+  let _dims = { ...DEFAULT_DIMS };
+  let _statePromise = null;
 
-  // ── Fetch helpers ───────────────────────────────────────────────────────────
+  // ── Fetch ───────────────────────────────────────────────────────────────────
 
-  function loadSettings() {
-    if (_settingsPromise) return _settingsPromise;
-    _settingsPromise = fetch("/api/plugin/logotype/settings")
+  function loadState() {
+    _statePromise ??= fetch("/api/plugin/logotype/state")
       .then(r => r.json())
-      .then(d => { _logoIntro = ["none","fade","matrix"].includes(d?.logoIntro) ? d.logoIntro : "none"; })
+      .then(s => {
+        _logoIntro = ["none","fade","matrix"].includes(s.logoIntro) ? s.logoIntro : "none";
+        const p = (v, fb) => { const n = parseInt(v,10); return !isNaN(n) && n > 0 ? n : fb; };
+        _dims = Object.fromEntries(Object.entries(DEFAULT_DIMS).map(([k, fb]) => [k, p(s.dims?.[k], fb)]));
+        _cachedDataUrl = s.dataUrl ?? null;
+        _cachedWordmark = s.wordmark?.text ? s.wordmark : null;
+      })
       .catch(() => {});
-    return _settingsPromise;
-  }
-
-  async function loadDimensions() {
-    if (_dimensionsLoaded) return;
-    try {
-      const d = await fetch("/api/plugin/logotype/dimensions").then(r => r.json());
-      const p = (v, fb) => { const n = parseInt(v,10); return !isNaN(n) && n > 0 ? n : fb; };
-      _homeMaxHeight = p(d.homeMaxHeight,300); _homeMaxWidth  = p(d.homeMaxWidth,500);
-      _searchMaxHeight = p(d.searchMaxHeight,100); _searchMaxWidth = p(d.searchMaxWidth,300);
-      _dimensionsLoaded = true;
-    } catch {}
-  }
-
-  async function fetchLogo() {
-    if (_cachedDataUrl !== undefined) return _cachedDataUrl;
-    try {
-      const d = await fetch("/api/plugin/logotype/logo").then(r => r.json());
-      return (_cachedDataUrl = d.dataUrl ?? null);
-    } catch { return (_cachedDataUrl = null); }
-  }
-
-  async function fetchWordmark() {
-    if (_cachedWordmark !== undefined) return _cachedWordmark;
-    try {
-      const d = await fetch("/api/plugin/logotype/wordmark").then(r => r.json());
-      return (_cachedWordmark = d.text ? d : null);
-    } catch { return (_cachedWordmark = null); }
+    return _statePromise;
   }
 
   // ── Wordmark rendering ──────────────────────────────────────────────────────
@@ -206,8 +185,8 @@
       const img = document.createElement("img");
       img.src = dataUrl; img.alt = "Logo";
       img.className = "logotype-img";
-      img.style.maxHeight = `${_homeMaxHeight}px`;
-      img.style.maxWidth  = `${_homeMaxWidth}px`;
+      img.style.maxHeight = `${_dims.homeMaxHeight}px`;
+      img.style.maxWidth  = `${_dims.homeMaxWidth}px`;
       homeLogo.replaceChildren(img);
       newImgs.push(img);
     }
@@ -219,8 +198,8 @@
       const img = document.createElement("img");
       img.src = dataUrl; img.alt = "Logo";
       img.className = "logotype-img logotype-img--search";
-      img.style.maxHeight = `${_searchMaxHeight}px`;
-      img.style.maxWidth  = `${_searchMaxWidth}px`;
+      img.style.maxHeight = `${_dims.searchMaxHeight}px`;
+      img.style.maxWidth  = `${_dims.searchMaxWidth}px`;
       if (resultsEl.tagName === "A") resultsEl.replaceChildren(img);
       else resultsEl.replaceWith(img);
       newImgs.push(img);
@@ -235,8 +214,8 @@
   // ── Init ────────────────────────────────────────────────────────────────────
 
   async function init() {
-    await Promise.all([loadDimensions(), loadSettings()]);
-    const [wm, dataUrl] = await Promise.all([fetchWordmark(), fetchLogo()]);
+    await loadState();
+    const wm = _cachedWordmark, dataUrl = _cachedDataUrl;
 
     if (wm?.text) {
       applyWordmark(wm);
@@ -313,12 +292,8 @@
   // ── Card UI helpers ─────────────────────────────────────────────────────────
 
   function _readDims(root) {
-    return {
-      homeMaxHeight:   parseInt(root.querySelector("#lt-home-h")?.value   ?? "300", 10),
-      homeMaxWidth:    parseInt(root.querySelector("#lt-home-w")?.value   ?? "500", 10),
-      searchMaxHeight: parseInt(root.querySelector("#lt-search-h")?.value ?? "100", 10),
-      searchMaxWidth:  parseInt(root.querySelector("#lt-search-w")?.value ?? "300", 10),
-    };
+    return Object.fromEntries(Object.entries(DIM_INPUTS).map(([k, sel]) =>
+      [k, parseInt(root.querySelector(sel)?.value ?? DEFAULT_DIMS[k], 10)]));
   }
 
   function wireResultUi(root) {
@@ -467,12 +442,9 @@
     });
 
     // ── Dimension sliders — live label ────────────────────────────────────────
-    [["#lt-home-h",   "#lt-home-h-val"],
-     ["#lt-home-w",   "#lt-home-w-val"],
-     ["#lt-search-h", "#lt-search-h-val"],
-     ["#lt-search-w", "#lt-search-w-val"]].forEach(([sliderId, valId]) => {
+    Object.values(DIM_INPUTS).forEach(sliderId => {
       const slider = /** @type {HTMLInputElement|null} */ (root.querySelector(sliderId));
-      const label  = root.querySelector(valId);
+      const label  = root.querySelector(`${sliderId}-val`);
       if (!slider || !label) return;
       slider.addEventListener("input", () => { label.textContent = `${slider.value}px`; });
     });
@@ -521,14 +493,12 @@
           if (results.some(r => !r.ok)) { _setStatus(root, "Save failed.", false); return; }
           if (_pendingDataUrl) { _cachedDataUrl = _pendingDataUrl; _pendingDataUrl = null; }
           // Update live image dimensions on current page
-          _homeMaxHeight = dims.homeMaxHeight; _homeMaxWidth = dims.homeMaxWidth;
-          _searchMaxHeight = dims.searchMaxHeight; _searchMaxWidth = dims.searchMaxWidth;
-          _dimensionsLoaded = true;
+          _dims = dims;
           document.querySelectorAll(".logotype-img--search").forEach(el => {
-            el.style.maxHeight = `${_searchMaxHeight}px`; el.style.maxWidth = `${_searchMaxWidth}px`;
+            el.style.maxHeight = `${_dims.searchMaxHeight}px`; el.style.maxWidth = `${_dims.searchMaxWidth}px`;
           });
           document.querySelectorAll(".logotype-img:not(.logotype-img--search)").forEach(el => {
-            el.style.maxHeight = `${_homeMaxHeight}px`; el.style.maxWidth = `${_homeMaxWidth}px`;
+            el.style.maxHeight = `${_dims.homeMaxHeight}px`; el.style.maxWidth = `${_dims.homeMaxWidth}px`;
           });
           _setStatus(root, "Saved! Reloading…", true);
           setTimeout(() => location.reload(), 800);
@@ -576,7 +546,7 @@
 
   function _updateImgThumb(root, dataUrl) {
     const existing = root.querySelector("#logotype-preview");
-    const noLogo   = root.querySelector("#logotype-nologo");
+    const noLogo   = root.querySelector("#logotype-noimg");
     if (dataUrl) {
       if (existing) { existing.src = dataUrl; }
       else if (noLogo) {
@@ -587,7 +557,7 @@
     } else {
       if (existing) {
         const p = document.createElement("p");
-        p.id = "logotype-nologo"; p.className = "lt-img-none"; p.textContent = "No image set.";
+        p.id = "logotype-noimg"; p.className = "lt-img-none"; p.textContent = "No image set yet.";
         existing.replaceWith(p);
       }
     }
@@ -629,7 +599,7 @@
     const _ch = (rm, gm, bm) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"); x.drawImage(img,0,0,w,h); const d = x.getImageData(0,0,w,h); for (let i=0;i<d.data.length;i+=4){d.data[i]=(d.data[i]*rm)|0;d.data[i+1]=(d.data[i+1]*gm)|0;d.data[i+2]=(d.data[i+2]*bm)|0;} x.putImageData(d,0,0); return c; };
     const redCh = _ch(1,0,0), cyanCh = _ch(0,1,1);
     const isSearch = img.className.includes("--search");
-    const maxW = isSearch ? _searchMaxWidth : _homeMaxWidth, maxH = isSearch ? _searchMaxHeight : _homeMaxHeight;
+    const maxW = isSearch ? _dims.searchMaxWidth : _dims.homeMaxWidth, maxH = isSearch ? _dims.searchMaxHeight : _dims.homeMaxHeight;
     const scale = Math.min(1,maxW/w,maxH/h), rendW = Math.round(w*scale), rendH = Math.round(h*scale), scaledPad = Math.round(PAD*scale);
     const canvas = document.createElement("canvas"); canvas.width = w+PAD*2; canvas.height = h+PAD*2;
     canvas.className = img.className; canvas.style.cssText = img.style.cssText;
