@@ -18,7 +18,7 @@ Each extension documents its own settings. Follow the link rather than looking f
 
 ### Integrations
 
-Two extensions per service: a **plugin** for the results panel and the First mode, and an **engine** for the dedicated tab and the bang shortcut. The pair shares one settings bucket: URL and token are entered once, on the plugin's card. Install and remove them together.
+Two extensions per service: a **plugin** for the results panel and the First mode, and an **engine** for the dedicated tab and the bang shortcut. The pair shares one settings bucket: URL and token are entered once, on the plugin's card. Installing either one installs the other. Uninstalling does not: remove both together.
 
 | Extension | Type | What it does |
 |---|---|---|

@@ -7,13 +7,13 @@ Results appear in a dedicated **Karakeep** tab and, by default, also among the w
 ## Requirements
 
 - Degoog with engine plugin manifests (currently the `develop` branch, next release)
-- The **Karakeep** plugin, installed alongside
+- The **Karakeep** plugin, installed automatically with the engine
 - A running [Karakeep](https://github.com/karakeep-app/karakeep) instance with Meilisearch enabled
 - A Karakeep API key
 
 ## Settings
 
-The engine shares the Karakeep plugin's manifest id, so the instance URL and API key are entered once, on the plugin's card in **Settings > Plugins > Karakeep**. Uninstalling the plugin removes that shared settings bucket, so install and remove the two together.
+The engine shares the Karakeep plugin's manifest id, so the instance URL and API key are entered once, on the plugin's card in **Settings > Plugins > Karakeep**. Uninstalling the plugin removes that shared settings bucket, so remove the two together.
 
 The engine's own card, in **Settings > Engines > Karakeep**, keeps:
 

@@ -46,7 +46,7 @@ The token is stored server-side and never reaches the browser: the plugin runs w
 | Hister First | Route the search to the Hister tab when your history has enough matches | disabled |
 | Minimum results to trigger | 1 to 50, counted before deduplication | `10` |
 
-For the redirect to land somewhere, install the companion **Hister Engine**, which is what provides the `hister` tab.
+The redirect lands on the `hister` tab provided by the companion **Hister Engine**, which the store installs automatically with this plugin.
 
 ## How Hister First works
 

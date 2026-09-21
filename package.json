@@ -12,6 +12,9 @@
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
+      ],
+      "dependencies": [
+        "https://github.com/cedhuf/ced_degoog_plugins/engines/hister-engine"
       ]
     },
     {
@@ -23,6 +26,9 @@
       "screenshots": [
         "screenshots/1.png",
         "screenshots/2.png"
+      ],
+      "dependencies": [
+        "https://github.com/cedhuf/ced_degoog_plugins/engines/karakeep-engine"
       ]
     },
     {
@@ -51,6 +57,9 @@
       "version": "3.0.0",
       "screenshots": [
         "screenshots/screenshot.png"
+      ],
+      "dependencies": [
+        "https://github.com/cedhuf/ced_degoog_plugins/plugins/hister-slot"
       ]
     },
     {
@@ -58,7 +67,10 @@
       "name": "Karakeep Engine",
       "description": "Native Karakeep bookmark search engine: results in a dedicated tab and via the `!karakeep` bang shortcut. Which tabs it feeds is set from Degoog's own engine type override.",
       "version": "3.0.0",
-      "screenshots": []
+      "screenshots": [],
+      "dependencies": [
+        "https://github.com/cedhuf/ced_degoog_plugins/plugins/karakeep-slot"
+      ]
     }
   ],
   "themes": [],

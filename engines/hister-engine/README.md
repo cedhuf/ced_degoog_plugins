@@ -9,14 +9,14 @@ Results appear in a dedicated **Hister** tab and, by default, also among the web
 ## Requirements
 
 - Degoog with engine plugin manifests (currently the `develop` branch, next release)
-- The **Hister** plugin, installed alongside
+- The **Hister** plugin, installed automatically with the engine
 - A running [Hister](https://github.com/asciimoo/hister) instance
 
 ## Settings
 
 None of its own. The engine shares the Hister plugin's manifest id, so the instance URL and access token are entered once, on the plugin's card in **Settings > Plugins > Hister**. The engine's card keeps only Degoog's native options (type override, transport, score).
 
-Uninstalling the plugin removes that shared settings bucket, so install and remove the two together.
+Uninstalling the plugin removes that shared settings bucket, so remove the two together.
 
 ## Choosing which tabs it feeds
 

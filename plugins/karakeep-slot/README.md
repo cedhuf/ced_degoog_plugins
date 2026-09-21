@@ -50,7 +50,7 @@ The key is stored server-side and never reaches the browser: the plugin runs wit
 | Karakeep First | Route the search to the Karakeep tab when your bookmarks have enough matches | disabled |
 | Minimum results to trigger | 1 to 50 | `3` |
 
-For the redirect to land somewhere, install the companion **Karakeep Engine**, which is what provides the `karakeep` tab.
+The redirect lands on the `karakeep` tab provided by the companion **Karakeep Engine**, which the store installs automatically with this plugin.
 
 ## What gets shown
 
