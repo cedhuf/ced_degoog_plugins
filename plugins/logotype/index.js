@@ -392,6 +392,7 @@ export default {
       method: "post",
       path: "/reset",
       handler: async () => {
+        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
         await Promise.allSettled([unlink(LOGO_PATH), unlink(WM_PATH), unlink(DIMS_PATH)]);
         return Response.json({ ok: true });
       },
