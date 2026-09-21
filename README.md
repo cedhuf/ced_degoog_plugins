@@ -18,7 +18,7 @@ Each extension documents its own settings. Follow the link rather than looking f
 
 ### Integrations
 
-Two extensions per service: a **plugin** for the results panel and the First mode, and an **engine** for the dedicated tab and the bang shortcut. Degoog keeps plugins and engines in separate registries, so each is configured on its own.
+Two extensions per service: a **plugin** for the results panel and the First mode, and an **engine** for the dedicated tab and the bang shortcut. The pair shares one settings bucket: URL and token are entered once, on the plugin's card. Install and remove them together.
 
 | Extension | Type | What it does |
 |---|---|---|
@@ -41,7 +41,7 @@ The plugin and the engine are useful on their own, but First mode needs both: th
 | Extension | Minimum Degoog |
 |---|---|
 | Hister, Karakeep | 0.24.0 |
-| Hister Engine, Karakeep Engine | 0.21.0 |
+| Hister Engine, Karakeep Engine | `develop` (next release) |
 | Logotype, OhMyClean | 0.17.0 |
 
 The Hister and Karakeep plugins need 0.24.0 for the plugin manifest API, which is what lets their panel and their First mode register as one extension with one settings entry instead of two.

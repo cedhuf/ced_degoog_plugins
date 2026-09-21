@@ -17,11 +17,34 @@
 // Ties the slot and the interceptor to one id. Degoog stores their settings
 // under that id and hides the interceptor from the extension list.
 
+// Connection fields live here, not on the slot: the Hister engine declares the
+// same manifest id and keys, so Degoog stores them once and shows them once.
 export const plugin = {
   id: "hister-slot",
   name: "Hister",
   description:
     "Surfaces pages from your personal Hister history index inside Degoog.",
+  settingsSchema: [
+    {
+      key: "url",
+      label: "Hister instance URL",
+      type: "url",
+      required: true,
+      fieldset: "Connection",
+      placeholder: "https://hister.example.com",
+      description: "Base URL of your Hister instance, with no trailing slash.",
+    },
+    {
+      key: "apiKey",
+      label: "Access token",
+      type: "password",
+      secret: true,
+      fieldset: "Connection",
+      placeholder: "(optional)",
+      description:
+        "Found in Hister under Profile > Access Token. Required only if your instance uses authentication.",
+    },
+  ],
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -170,26 +193,6 @@ export const slot = {
   ],
 
   settingsSchema: [
-    {
-      key: "url",
-      label: "Hister instance URL",
-      type: "url",
-      required: true,
-      fieldset: "Connection",
-      placeholder: "https://hister.example.com",
-      description: "Base URL of your Hister instance, with no trailing slash.",
-    },
-    {
-      key: "apiKey",
-      label: "Access token",
-      type: "password",
-      secret: true,
-      fieldset: "Connection",
-      placeholder: "(optional)",
-      description:
-        "Found in Hister under Profile > Access Token. Required only if your instance uses authentication.",
-    },
-
     {
       key: "panelEnabled",
       label: 'Show the "In your index" panel',

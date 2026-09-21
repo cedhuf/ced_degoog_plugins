@@ -6,18 +6,19 @@ Results appear in a dedicated **Karakeep** tab and, by default, also among the w
 
 ## Requirements
 
-- Degoog **0.21.0** or newer
+- Degoog with engine plugin manifests (currently the `develop` branch, next release)
+- The **Karakeep** plugin, installed alongside
 - A running [Karakeep](https://github.com/karakeep-app/karakeep) instance with Meilisearch enabled
 - A Karakeep API key
 
 ## Settings
 
-In **Settings > Engines > Karakeep**.
+The engine shares the Karakeep plugin's manifest id, so the instance URL and API key are entered once, on the plugin's card in **Settings > Plugins > Karakeep**. Uninstalling the plugin removes that shared settings bucket, so install and remove the two together.
+
+The engine's own card, in **Settings > Engines > Karakeep**, keeps:
 
 | Setting | Description | Default |
 |---|---|---|
-| Karakeep instance URL | Base URL, for example `https://karakeep.example.com`, no trailing slash | *(required)* |
-| API key | From **Karakeep > Settings > API Keys** | *(required)* |
 | Results per search | 1 to 50 | `20` |
 
 ## Choosing which tabs it feeds
@@ -34,8 +35,6 @@ To change that, use Degoog's **built-in engine type override** in the engine set
 ## Related
 
 Install the **Karakeep** plugin alongside this engine for the "In your bookmarks" panel and Karakeep First mode, which routes searches to this engine's tab automatically when your bookmarks already answer the query.
-
-Note that the engine and the plugin are configured separately: Degoog keeps engines and plugins in two different registries, so the instance URL and API key have to be entered in both places.
 
 ## Upgrading from 1.x
 

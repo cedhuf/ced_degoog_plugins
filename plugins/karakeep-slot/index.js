@@ -19,11 +19,34 @@
 // Ties the slot and the interceptor to one id. Degoog stores their settings
 // under that id and hides the interceptor from the extension list.
 
+// Connection fields live here, not on the slot: the Karakeep engine declares the
+// same manifest id and keys, so Degoog stores them once and shows them once.
 export const plugin = {
   id: "karakeep-slot",
   name: "Karakeep",
   description:
     "Surfaces bookmarks from your self-hosted Karakeep instance inside Degoog.",
+  settingsSchema: [
+    {
+      key: "url",
+      label: "Karakeep instance URL",
+      type: "url",
+      required: true,
+      fieldset: "Connection",
+      placeholder: "https://karakeep.example.com",
+      description: "Base URL of your Karakeep instance, with no trailing slash.",
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      type: "password",
+      required: true,
+      secret: true,
+      fieldset: "Connection",
+      placeholder: "your-api-key",
+      description: "Generate one in Karakeep under Settings > API Keys.",
+    },
+  ],
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -195,26 +218,6 @@ export const slot = {
   ],
 
   settingsSchema: [
-    {
-      key: "url",
-      label: "Karakeep instance URL",
-      type: "url",
-      required: true,
-      fieldset: "Connection",
-      placeholder: "https://karakeep.example.com",
-      description: "Base URL of your Karakeep instance, with no trailing slash.",
-    },
-    {
-      key: "apiKey",
-      label: "API key",
-      type: "password",
-      required: true,
-      secret: true,
-      fieldset: "Connection",
-      placeholder: "your-api-key",
-      description: "Generate one in Karakeep under Settings > API Keys.",
-    },
-
     {
       key: "panelEnabled",
       label: 'Show the "In your bookmarks" panel',

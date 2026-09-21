@@ -3,17 +3,41 @@
 // The Karakeep plugin's "Karakeep First" interceptor routes searches to this
 // tab when enough bookmarks match, so no manual tab switching is needed.
 //
-// NOTE: this engine is configured in Settings > Engines > Karakeep. Degoog keeps
-//       engines and plugins in separate registries, so the URL and API key here
-//       are NOT shared with the Karakeep plugin.
-//
 // API: GET /api/v1/bookmarks/search?q=<query>&limit=<n>
 // Auth: Authorization: Bearer <api-key>
 
-// Declared once at import time — Degoog snapshots this value and does not
-// re-read it. To show Karakeep in only one of the two, use the engine's native
-// type override in Settings → Engines rather than editing this line.
+// Degoog snapshots `type` at import. Use the native type override in the
+// engine's settings to feed only one tab.
 export const type = ["web", "karakeep"];
+
+// Same id and keys as the Karakeep plugin's manifest: the URL and API key are
+// stored once, in the plugin's bucket, and edited on the plugin's card.
+// Keep these fields identical to plugins/karakeep-slot/index.js.
+export const plugin = {
+  id: "karakeep-slot",
+  name: "Karakeep",
+  settingsSchema: [
+    {
+      key: "url",
+      label: "Karakeep instance URL",
+      type: "url",
+      required: true,
+      fieldset: "Connection",
+      placeholder: "https://karakeep.example.com",
+      description: "Base URL of your Karakeep instance, with no trailing slash.",
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      type: "password",
+      required: true,
+      secret: true,
+      fieldset: "Connection",
+      placeholder: "your-api-key",
+      description: "Generate one in Karakeep under Settings > API Keys.",
+    },
+  ],
+};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -65,24 +89,6 @@ export default class KarakeepEngine {
 
   settingsSchema = [
     {
-      key: "url",
-      label: "Karakeep Instance URL",
-      type: "url",
-      required: true,
-      placeholder: "https://karakeep.example.com",
-      description: "Base URL of your Karakeep instance (no trailing slash).",
-    },
-    {
-      key: "apiKey",
-      label: "API Key",
-      type: "password",
-      required: true,
-      placeholder: "your-api-key",
-      description:
-        "Your Karakeep API key — generate one in Karakeep → Settings → API Keys.",
-      secret: true,
-    },
-    {
       key: "limit",
       label: "Results per search",
       type: "text",
@@ -99,13 +105,10 @@ export default class KarakeepEngine {
   }
 
   async executeSearch(query, _page = 1, _timeFilter, context) {
-    // An empty tab is indistinguishable from a tab that never ran, so say why.
-    // Note the engine is configured in Settings > Engines, separately from the
-    // Karakeep plugin: having one set up says nothing about the other.
     if (!_isConfigured()) {
       console.warn(
-        "[karakeep-engine] no instance URL or API key set, returning no " +
-          "results. Configure it in Settings > Engines > Karakeep.",
+        "[karakeep-engine] no instance URL or API key set, returning no results. " +
+          "Configure them in Settings > Plugins > Karakeep (install the Karakeep plugin if missing).",
       );
       return [];
     }

@@ -8,17 +8,15 @@ Results appear in a dedicated **Hister** tab and, by default, also among the web
 
 ## Requirements
 
-- Degoog **0.21.0** or newer
+- Degoog with engine plugin manifests (currently the `develop` branch, next release)
+- The **Hister** plugin, installed alongside
 - A running [Hister](https://github.com/asciimoo/hister) instance
 
 ## Settings
 
-In **Settings > Engines > Hister**.
+None of its own. The engine shares the Hister plugin's manifest id, so the instance URL and access token are entered once, on the plugin's card in **Settings > Plugins > Hister**. The engine's card keeps only Degoog's native options (type override, transport, score).
 
-| Setting | Description | Default |
-|---|---|---|
-| Hister instance URL | Base URL, for example `https://hister.example.com`, no trailing slash | *(required)* |
-| API key | Your Access Token, from **Hister > Profile > Access Token**. Only needed if your instance uses authentication | *(optional)* |
+Uninstalling the plugin removes that shared settings bucket, so install and remove the two together.
 
 ## Choosing which tabs it feeds
 
