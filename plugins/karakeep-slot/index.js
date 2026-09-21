@@ -100,7 +100,7 @@ function _errorFor(status, body) {
 }
 
 async function _search(query, contextFetch, limit) {
-  const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
+  const doFetch = contextFetch ?? fetch;
   const params = new URLSearchParams({ q: query, limit: String(limit || 10) });
   const res = await doFetch(`${cfg.url}/api/v1/bookmarks/search?${params}`, {
     headers: _headers(),

@@ -84,7 +84,7 @@ function _getCached(q) {
 }
 
 async function _search(query, contextFetch, limit) {
-  const doFetch = contextFetch ?? globalThis.fetch ?? fetch;
+  const doFetch = contextFetch ?? fetch;
   const payload = { text: query, include_text: true };
   if (limit) payload.limit = limit;
   const res = await doFetch(

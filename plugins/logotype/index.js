@@ -69,21 +69,6 @@ const _saveWordmark = async (config) => {
 
 let hideLogoManagement = false;
 let logoIntro = "none";
-let settingsLoaded = false;
-
-const _loadSettings = async () => {
-  if (settingsLoaded) return;
-  settingsLoaded = true;
-  try {
-    const raw = await readFile(join(process.cwd(), "data", "plugin-settings.json"), "utf-8");
-    const s = JSON.parse(raw)?.["plugin-logotype"];
-    if (s) {
-      hideLogoManagement = s.hideLogoManagement === true || s.hideLogoManagement === "true";
-      logoIntro = ["none","fade","matrix"].includes(s.logoIntro) ? s.logoIntro : "none";
-    }
-  } catch {}
-};
-_loadSettings().catch(() => {});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,11 +116,9 @@ export default {
   configure(settings) {
     hideLogoManagement = settings?.hideLogoManagement === true || settings?.hideLogoManagement === "true";
     logoIntro = ["none","fade","matrix"].includes(settings?.logoIntro) ? settings.logoIntro : "none";
-    settingsLoaded = true;
   },
 
   async execute() {
-    await _loadSettings();
 
     if (hideLogoManagement) {
       return {
@@ -344,10 +327,7 @@ export default {
       method: "get",
       path: "/settings",
       handler: async () => {
-        await _loadSettings();
-        return new Response(JSON.stringify({ hideLogoManagement, logoIntro }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        return Response.json({ hideLogoManagement, logoIntro });
       },
     },
     {
@@ -355,25 +335,22 @@ export default {
       path: "/logo",
       handler: async () => {
         const data = await _load();
-        return new Response(JSON.stringify({ dataUrl: data ?? null }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        return Response.json({ dataUrl: data ?? null });
       },
     },
     {
       method: "post",
       path: "/logo",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Logo management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
+        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
         let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
+        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
         const { dataUrl } = body ?? {};
-        if (dataUrl === null || dataUrl === "") { try { await unlink(LOGO_PATH); } catch {} return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }); }
-        if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return new Response(JSON.stringify({ error: "Invalid image data" }), { status: 400, headers: { "Content-Type": "application/json" } });
-        if (dataUrl.length > 2 * 1024 * 1024 * 1.37) return new Response(JSON.stringify({ error: "Image too large (max 2 MB)" }), { status: 413, headers: { "Content-Type": "application/json" } });
+        if (dataUrl === null || dataUrl === "") { try { await unlink(LOGO_PATH); } catch {} return Response.json({ ok: true }); }
+        if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return Response.json({ error: "Invalid image data" }, { status: 400 });
+        if (dataUrl.length > 2 * 1024 * 1024 * 1.37) return Response.json({ error: "Image too large (max 2 MB)" }, { status: 413 });
         await _save(dataUrl);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
     {
@@ -381,21 +358,18 @@ export default {
       path: "/wordmark",
       handler: async () => {
         const wm = await _loadWordmark();
-        return new Response(JSON.stringify(wm ?? { text: null }), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        return Response.json(wm ?? { text: null });
       },
     },
     {
       method: "post",
       path: "/wordmark",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Logo management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
+        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
         let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
+        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
         const text = (body?.text ?? "").trim().slice(0, 80);
-        if (!text) { try { await unlink(WM_PATH); } catch {} return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }); }
+        if (!text) { try { await unlink(WM_PATH); } catch {} return Response.json({ ok: true }); }
         const font = FONT_IDS.has(body?.font) ? body.font : "outfit";
 
         // Validate color
@@ -422,7 +396,7 @@ export default {
         const decorator = { type: decType, position: decPos };
 
         await _saveWordmark({ text, font, color, decorator });
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
     {
@@ -430,7 +404,7 @@ export default {
       path: "/reset",
       handler: async () => {
         await Promise.allSettled([unlink(LOGO_PATH), unlink(WM_PATH), unlink(DIMS_PATH)]);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
     {
@@ -438,17 +412,16 @@ export default {
       path: "/dimensions",
       handler: async () => {
         const dims = await _loadDimensions();
-        return new Response(JSON.stringify(dims), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json(dims);
       },
     },
     {
       method: "post",
       path: "/dimensions",
       handler: async (req) => {
-        await _loadSettings();
-        if (hideLogoManagement) return new Response(JSON.stringify({ error: "Dimension management is disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
+        if (hideLogoManagement) return Response.json({ error: "Dimension management is disabled" }, { status: 403 });
         let body;
-        try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
+        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
         const _n = (v, fb) => { const n = parseInt(v, 10); return !isNaN(n) && n > 0 ? n : fb; };
         const dims = {
           homeMaxHeight:   _n(body?.homeMaxHeight, 300),
@@ -457,7 +430,7 @@ export default {
           searchMaxWidth:  _n(body?.searchMaxWidth,  300),
         };
         await _saveDimensions(dims);
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+        return Response.json({ ok: true });
       },
     },
   ],
