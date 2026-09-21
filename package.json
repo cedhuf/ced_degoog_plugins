@@ -8,7 +8,7 @@
       "path": "plugins/hister-slot",
       "name": "Hister",
       "description": "Integrates your personal [Hister](https://github.com/asciimoo/hister) history index into Degoog: an \"In your index\" panel alongside search results, plus an optional Hister First mode that routes the search to the Hister tab when your history already answers it. Requires Degoog 0.24.0 or newer.",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "type": "slot",
       "screenshots": [
         "screenshots/screenshot.png"
@@ -18,7 +18,7 @@
       "path": "plugins/karakeep-slot",
       "name": "Karakeep",
       "description": "Integrates your self-hosted [Karakeep](https://karakeep.app) bookmark manager into Degoog: an \"In your bookmarks\" panel alongside search results, plus an optional Karakeep First mode that routes the search to the Karakeep tab when your bookmarks already answer it. Requires Degoog 0.24.0 or newer.",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "type": "slot",
       "screenshots": [
         "screenshots/1.png",
@@ -29,7 +29,7 @@
       "path": "plugins/ohmyclean",
       "name": "OhMyClean",
       "description": "Selectively hide or replace Degoog UI elements — footer, settings gear (home + results), search buttons, logo wordmark. Swap the button row for a minimal arrow, or just clean up what you don't use.",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "type": "slot",
       "screenshots": []
     },
@@ -37,7 +37,7 @@
       "path": "plugins/logotype",
       "name": "Logotype",
       "description": "Replace the Degoog logo with a custom text wordmark or your own image. Style your brand with font, color, and decorator options — all with a live preview. Manage via `!logo`.",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "screenshots": [
         "screenshots/screenshots.png"
       ]
