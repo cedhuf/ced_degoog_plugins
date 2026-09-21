@@ -576,7 +576,7 @@
 
   function _updateImgThumb(root, dataUrl) {
     const existing = root.querySelector("#logotype-preview");
-    const noLogo   = root.querySelector("#logotype-nologo");
+    const noLogo   = root.querySelector("#logotype-noimg");
     if (dataUrl) {
       if (existing) { existing.src = dataUrl; }
       else if (noLogo) {
@@ -587,7 +587,7 @@
     } else {
       if (existing) {
         const p = document.createElement("p");
-        p.id = "logotype-nologo"; p.className = "lt-img-none"; p.textContent = "No image set.";
+        p.id = "logotype-noimg"; p.className = "lt-img-none"; p.textContent = "No image set yet.";
         existing.replaceWith(p);
       }
     }

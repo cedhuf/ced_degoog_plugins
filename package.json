@@ -21,7 +21,8 @@
       "version": "3.0.0",
       "type": "slot",
       "screenshots": [
-        "screenshots/screenshot.png"
+        "screenshots/1.png",
+        "screenshots/2.png"
       ]
     },
     {

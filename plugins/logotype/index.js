@@ -186,7 +186,7 @@ export default {
     const solidSwatches = SOLID_PRESETS.map(c =>
       `<button class="lt-swatch${colorType === "solid" && wmColor.value === c ? " active" : ""}" data-color="${c}" style="background:${c};" title="${c}"></button>`
     ).join("") +
-    `<label class="lt-swatch lt-swatch-custom" title="Custom color"><input id="lt-solid-custom" type="color" value="${colorType === "solid" ? solidVal : "#4a9eff'"}"/><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></label>`;
+    `<label class="lt-swatch lt-swatch-custom" title="Custom color"><input id="lt-solid-custom" type="color" value="${colorType === "solid" ? solidVal : "#4a9eff"}"/><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></label>`;
 
     // Gradient preset swatches
     const gradSwatches = GRADIENT_PRESETS.map(g =>
