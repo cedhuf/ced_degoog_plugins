@@ -80,6 +80,12 @@ function _validHex(v) {
   return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : null;
 }
 
+// Parsed request body, or the error Response to return as-is.
+async function _guardedBody(req, what = "Logo") {
+  if (hideLogoManagement) return Response.json({ error: `${what} management is disabled` }, { status: 403 });
+  try { return (await req.json()) ?? {}; } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
+}
+
 // SVG icon strings for decorator chips (chip-sized)
 const DEC_ICON = {
   bars: `<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="8" width="3" height="6" rx="0.5"/><rect x="4.5" y="4" width="3" height="10" rx="0.5"/><rect x="9" y="0" width="3" height="14" rx="0.5"/></svg>`,
@@ -325,27 +331,19 @@ export default {
   routes: [
     {
       method: "get",
-      path: "/settings",
+      path: "/state",
       handler: async () => {
-        return Response.json({ hideLogoManagement, logoIntro });
-      },
-    },
-    {
-      method: "get",
-      path: "/logo",
-      handler: async () => {
-        const data = await _load();
-        return Response.json({ dataUrl: data ?? null });
+        const [dataUrl, wordmark, dims] = await Promise.all([_load(), _loadWordmark(), _loadDimensions()]);
+        return Response.json({ dataUrl, wordmark, dims, logoIntro });
       },
     },
     {
       method: "post",
       path: "/logo",
       handler: async (req) => {
-        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
-        let body;
-        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
-        const { dataUrl } = body ?? {};
+        const body = await _guardedBody(req);
+        if (body instanceof Response) return body;
+        const { dataUrl } = body;
         if (dataUrl === null || dataUrl === "") { try { await unlink(LOGO_PATH); } catch {} return Response.json({ ok: true }); }
         if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return Response.json({ error: "Invalid image data" }, { status: 400 });
         if (dataUrl.length > 2 * 1024 * 1024 * 1.37) return Response.json({ error: "Image too large (max 2 MB)" }, { status: 413 });
@@ -354,26 +352,17 @@ export default {
       },
     },
     {
-      method: "get",
-      path: "/wordmark",
-      handler: async () => {
-        const wm = await _loadWordmark();
-        return Response.json(wm ?? { text: null });
-      },
-    },
-    {
       method: "post",
       path: "/wordmark",
       handler: async (req) => {
-        if (hideLogoManagement) return Response.json({ error: "Logo management is disabled" }, { status: 403 });
-        let body;
-        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
-        const text = (body?.text ?? "").trim().slice(0, 80);
+        const body = await _guardedBody(req);
+        if (body instanceof Response) return body;
+        const text = (body.text ?? "").trim().slice(0, 80);
         if (!text) { try { await unlink(WM_PATH); } catch {} return Response.json({ ok: true }); }
-        const font = FONT_IDS.has(body?.font) ? body.font : "outfit";
+        const font = FONT_IDS.has(body.font) ? body.font : "outfit";
 
         // Validate color
-        const rawColor = body?.color || {};
+        const rawColor = body.color || {};
         const colorType = VALID_COLOR_TYPES.includes(rawColor.type) ? rawColor.type : "none";
         let color;
         if (colorType === "solid") {
@@ -390,7 +379,7 @@ export default {
         }
 
         // Validate decorator
-        const rawDec = body?.decorator || {};
+        const rawDec = body.decorator || {};
         const decType = VALID_DEC_TYPES.includes(rawDec.type)    ? rawDec.type     : "none";
         const decPos  = VALID_DEC_POS.includes(rawDec.position)  ? rawDec.position : "before";
         const decorator = { type: decType, position: decPos };
@@ -408,27 +397,13 @@ export default {
       },
     },
     {
-      method: "get",
-      path: "/dimensions",
-      handler: async () => {
-        const dims = await _loadDimensions();
-        return Response.json(dims);
-      },
-    },
-    {
       method: "post",
       path: "/dimensions",
       handler: async (req) => {
-        if (hideLogoManagement) return Response.json({ error: "Dimension management is disabled" }, { status: 403 });
-        let body;
-        try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
+        const body = await _guardedBody(req, "Dimension");
+        if (body instanceof Response) return body;
         const _n = (v, fb) => { const n = parseInt(v, 10); return !isNaN(n) && n > 0 ? n : fb; };
-        const dims = {
-          homeMaxHeight:   _n(body?.homeMaxHeight, 300),
-          homeMaxWidth:    _n(body?.homeMaxWidth,  500),
-          searchMaxHeight: _n(body?.searchMaxHeight, 100),
-          searchMaxWidth:  _n(body?.searchMaxWidth,  300),
-        };
+        const dims = Object.fromEntries(Object.entries(DEFAULT_DIMS).map(([k, fb]) => [k, _n(body[k], fb)]));
         await _saveDimensions(dims);
         return Response.json({ ok: true });
       },
