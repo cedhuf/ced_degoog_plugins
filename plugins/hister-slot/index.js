@@ -27,12 +27,23 @@ export const plugin = {
   settingsSchema: [
     {
       key: "url",
-      label: "Hister instance URL",
+      label: "Hister internal URL",
       type: "url",
       required: true,
       fieldset: "Connection",
+      placeholder: "http://hister:4433",
+      description:
+        "URL Degoog uses to reach Hister. This can be a private or container-network address.",
+    },
+    {
+      key: "publicUrl",
+      label: "Hister public URL",
+      type: "url",
+      required: false,
+      fieldset: "Connection",
       placeholder: "https://hister.example.com",
-      description: "Base URL of your Hister instance, with no trailing slash.",
+      description:
+        "URL your browser uses to open Hister. Leave empty to reuse the internal URL.",
     },
     {
       key: "apiKey",
@@ -51,6 +62,7 @@ export const plugin = {
 
 const cfg = {
   url: "",
+  publicUrl: "",
   apiKey: "",
   panelEnabled: true,
   limit: 5,
@@ -89,7 +101,9 @@ const _esc = (s) =>
     .replace(/"/g, "&quot;");
 
 function _headers() {
-  const h = { Accept: "application/json", Origin: cfg.url };
+  // Hister checks the Origin header against its own base URL, so use the
+  // browser-facing URL when one is set; it falls back to the internal URL.
+  const h = { Accept: "application/json", Origin: cfg.publicUrl || cfg.url };
   if (cfg.apiKey) {
     h["Authorization"] = `Bearer ${cfg.apiKey}`;
     h["X-Access-Token"] = cfg.apiKey;
@@ -262,6 +276,7 @@ export const slot = {
 
   configure(settings) {
     cfg.url = (settings.url || "").replace(/\/$/, "");
+    cfg.publicUrl = (settings.publicUrl || "").replace(/\/$/, "");
     cfg.apiKey = settings.apiKey || "";
     cfg.panelEnabled =
       settings.panelEnabled === undefined ? true : _bool(settings.panelEnabled);
@@ -304,7 +319,7 @@ export const slot = {
     const displayed = results.slice(0, cfg.limit);
     if (!displayed.length) return { html: "" };
 
-    const viewAll = `${cfg.url}/?q=${encodeURIComponent(q)}`;
+    const viewAll = `${cfg.publicUrl || cfg.url}/?q=${encodeURIComponent(q)}`;
     const items = displayed.map(_renderResult).join("");
 
     // Only shown once Hister First actually redirected, so the user can opt out

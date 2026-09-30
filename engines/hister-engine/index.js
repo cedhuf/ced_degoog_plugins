@@ -16,12 +16,23 @@ export const plugin = {
   settingsSchema: [
     {
       key: "url",
-      label: "Hister instance URL",
+      label: "Hister internal URL",
       type: "url",
       required: true,
       fieldset: "Connection",
+      placeholder: "http://hister:4433",
+      description:
+        "URL Degoog uses to reach Hister. This can be a private or container-network address.",
+    },
+    {
+      key: "publicUrl",
+      label: "Hister public URL",
+      type: "url",
+      required: false,
+      fieldset: "Connection",
       placeholder: "https://hister.example.com",
-      description: "Base URL of your Hister instance, with no trailing slash.",
+      description:
+        "URL your browser uses to open Hister. Leave empty to reuse the internal URL.",
     },
     {
       key: "apiKey",
@@ -39,6 +50,7 @@ export const plugin = {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let _url = "";
+let _publicUrl = "";
 let _apiKey = "";
 
 function _isConfigured() {
@@ -46,7 +58,9 @@ function _isConfigured() {
 }
 
 function _headers() {
-  const h = { Accept: "application/json", Origin: _url };
+  // Hister checks the Origin header against its own base URL, so use the
+  // browser-facing URL when one is set; it falls back to the internal URL.
+  const h = { Accept: "application/json", Origin: _publicUrl || _url };
   if (_apiKey) {
     h["Authorization"] = `Bearer ${_apiKey}`;
     h["X-Access-Token"] = _apiKey;
@@ -63,6 +77,7 @@ export default class HisterEngine {
 
   configure(settings) {
     _url = (settings.url || "").replace(/\/$/, "");
+    _publicUrl = (settings.publicUrl || "").replace(/\/$/, "");
     _apiKey = settings.apiKey || "";
   }
 

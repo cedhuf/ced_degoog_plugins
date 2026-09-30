@@ -14,7 +14,9 @@ Results appear in a dedicated **Hister** tab and, by default, also among the web
 
 ## Settings
 
-None of its own. The engine shares the Hister plugin's manifest id, so the instance URL and access token are entered once, on the plugin's card in **Settings > Plugins > Hister**. The engine's card keeps only Degoog's native options (type override, transport, score).
+None of its own. The engine shares the Hister plugin's manifest id, so the instance URL, optional public URL and access token are entered once, on the plugin's card in **Settings > Plugins > Hister**. The engine's card keeps only Degoog's native options (type override, transport, score).
+
+The optional **public URL** is used as the Hister `Origin` header; leave it empty and the internal URL is used for both.
 
 Uninstalling the plugin removes that shared settings bucket, so remove the two together.
 
